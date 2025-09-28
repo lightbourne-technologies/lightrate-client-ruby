@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Setting up lightrate-client..."
+
+# Install dependencies
+echo "Installing dependencies..."
+bundle install
+
+# Run tests
+echo "Running tests..."
+bundle exec rspec
+
+echo "Setup complete!"
