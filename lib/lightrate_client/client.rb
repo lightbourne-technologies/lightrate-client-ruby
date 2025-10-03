@@ -14,7 +14,6 @@ module LightrateClient
         # Create a new configuration with the provided API key
         @configuration = LightrateClient::Configuration.new.tap do |c|
           c.api_key = api_key
-          c.base_url = options[:base_url] || LightrateClient.configuration.base_url
           c.timeout = options[:timeout] || LightrateClient.configuration.timeout
           c.retry_attempts = options[:retry_attempts] || LightrateClient.configuration.retry_attempts
           c.logger = options[:logger] || LightrateClient.configuration.logger
@@ -32,26 +31,6 @@ module LightrateClient
       setup_token_buckets
     end
 
-    # Consume tokens from the token bucket using a request object
-    # @param request [ConsumeTokensRequest] The token consumption request
-    # @return [ConsumeTokensResponse] The response indicating success/failure and remaining tokens
-    def consume_tokens_with_request(request)
-      raise ArgumentError, "Invalid request" unless request.is_a?(ConsumeTokensRequest)
-      raise ArgumentError, "Request validation failed" unless request.valid?
-
-      post("/api/v1/tokens/consume", request.to_h)
-    end
-
-    # Check available tokens without consuming them using a request object
-    # @param request [CheckTokensRequest] The token check request
-    # @return [CheckTokensResponse] The response with available tokens and rule info
-    def check_tokens_with_request(request)
-      raise ArgumentError, "Invalid request" unless request.is_a?(CheckTokensRequest)
-      raise ArgumentError, "Request validation failed" unless request.valid?
-
-      get("/api/v1/tokens/check", request.to_query_params)
-    end
-
     # Consume tokens by operation or path using local bucket
     # @param operation [String, nil] The operation name (mutually exclusive with path)
     # @param path [String, nil] The API path (mutually exclusive with operation)
@@ -62,12 +41,13 @@ module LightrateClient
       bucket = get_or_create_bucket(user_identifier, operation, path)
 
       tokens_available_locally = bucket.has_tokens?
+      tokens_consumed = 0
       
       # Check if we have enough tokens available locally, if not, get more from API
       unless tokens_available_locally
         # Get the appropriate bucket size for this operation/path
         tokens_to_fetch = get_bucket_size_for_operation(operation, path)
-        request = ConsumeTokensRequest.new(
+        request = LightrateClient::ConsumeTokensRequest.new(
           operation: operation,
           path: path,
           user_identifier: user_identifier,
@@ -76,24 +56,34 @@ module LightrateClient
         # Make the API call
         response = post("/api/v1/tokens/consume", request.to_h)
 
-        if response['tokensConsumed'] > 0
+        tokens_consumed = response['tokensConsumed']&.to_i || 0
+        if tokens_consumed > 0
           # Refill the bucket with the fetched tokens
-          bucket.refill(response['tokensConsumed'])
+          bucket.refill(tokens_consumed)
         end
+      end
+
+      # If we had to fetch from API but got 0 tokens, return failure
+      if !tokens_available_locally && tokens_consumed == 0
+        return LightrateClient::ConsumeLocalBucketTokenResponse.new(
+          success: false,
+          used_local_token: false,
+          bucket_status: bucket.status
+        )
       end
 
       # Now try to consume the requested tokens from the bucket
       consumed_successfully = bucket.consume_token
 
-      {
+      LightrateClient::ConsumeLocalBucketTokenResponse.new(
         success: consumed_successfully,
         used_local_token: tokens_available_locally,
         bucket_status: bucket.status
-      }
+      )
     end
 
     def consume_tokens(operation: nil, path: nil, user_identifier:, tokens_requested:)
-      request = ConsumeTokensRequest.new(
+      request = LightrateClient::ConsumeTokensRequest.new(
         operation: operation,
         path: path,
         user_identifier: user_identifier,
@@ -107,7 +97,7 @@ module LightrateClient
     # @param path [String, nil] The API path (mutually exclusive with operation)
     # @param user_identifier [String] The user identifier
     def check_tokens(operation: nil, path: nil, user_identifier:)
-      request = CheckTokensRequest.new(
+      request = LightrateClient::CheckTokensRequest.new(
         operation: operation,
         path: path,
         user_identifier: user_identifier
@@ -116,6 +106,28 @@ module LightrateClient
     end
 
     private
+
+    # Consume tokens from the token bucket using a request object
+    # @param request [ConsumeTokensRequest] The token consumption request
+    # @return [ConsumeTokensResponse] The response indicating success/failure and remaining tokens
+    def consume_tokens_with_request(request)
+      raise ArgumentError, "Invalid request" unless request.is_a?(LightrateClient::ConsumeTokensRequest)
+      raise ArgumentError, "Request validation failed" unless request.valid?
+
+      response = post("/api/v1/tokens/consume", request.to_h)
+      LightrateClient::ConsumeTokensResponse.from_hash(response)
+    end
+
+    # Check available tokens without consuming them using a request object
+    # @param request [CheckTokensRequest] The token check request
+    # @return [CheckTokensResponse] The response with available tokens and rule info
+    def check_tokens_with_request(request)
+      raise ArgumentError, "Invalid request" unless request.is_a?(LightrateClient::CheckTokensRequest)
+      raise ArgumentError, "Request validation failed" unless request.valid?
+
+      response = get("/api/v1/tokens/check", request.to_query_params)
+      LightrateClient::CheckTokensResponse.from_hash(response)
+    end
 
     def setup_token_buckets
       @token_buckets = {}
@@ -160,11 +172,10 @@ module LightrateClient
 
     def validate_configuration!
       raise ConfigurationError, "API key is required" unless configuration.api_key
-      raise ConfigurationError, "Base URL is required" unless configuration.base_url
     end
 
     def setup_connection
-      @connection = Faraday.new(url: configuration.base_url) do |conn|
+      @connection = Faraday.new(url: "https://api.lightrate.lightbournetechnologies.ca") do |conn|
         conn.request :json
         conn.response :json, content_type: /\bjson$/
         conn.response :logger, configuration.logger if configuration.logger

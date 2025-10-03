@@ -83,6 +83,71 @@ module LightrateClient
     end
   end
 
+  # Response types
+  class ConsumeTokensResponse
+    attr_reader :success, :tokens_remaining, :error, :tokens_consumed
+
+    def initialize(success:, tokens_remaining: nil, error: nil, tokens_consumed: 0)
+      @success = success
+      @tokens_remaining = tokens_remaining
+      @error = error
+      @tokens_consumed = tokens_consumed
+    end
+
+    def self.from_hash(hash)
+      new(
+        success: hash['success'] || hash[:success],
+        tokens_remaining: hash['tokensRemaining'] || hash[:tokens_remaining],
+        error: hash['error'] || hash[:error],
+        tokens_consumed: hash['tokensConsumed'] || hash[:tokens_consumed] || 0
+      )
+    end
+  end
+
+  class ConsumeLocalBucketTokenResponse
+    attr_reader :success, :used_local_token, :bucket_status
+
+    def initialize(success:, used_local_token: false, bucket_status: nil)
+      @success = success
+      @used_local_token = used_local_token
+      @bucket_status = bucket_status
+    end
+
+    # Indicates if this request required fetching tokens from the server
+    def required_fetch?
+      !@used_local_token
+    end
+
+    # Indicates if there were no more tokens available locally before this request
+    def was_bucket_empty?
+      !@used_local_token
+    end
+  end
+
+  class CheckTokensResponse
+    attr_reader :available, :tokens_remaining, :rule
+
+    def initialize(available:, tokens_remaining: nil, rule: nil)
+      @available = available
+      @tokens_remaining = tokens_remaining
+      @rule = rule
+    end
+
+    def self.from_hash(hash)
+      rule = nil
+      if hash['rule'] || hash[:rule]
+        rule_hash = hash['rule'] || hash[:rule]
+        rule = Rule.from_hash(rule_hash)
+      end
+
+      new(
+        available: hash['available'] || hash[:available],
+        tokens_remaining: hash['tokensRemaining'] || hash[:tokens_remaining],
+        rule: rule
+      )
+    end
+  end
+
   class Rule
     attr_reader :name, :refill_rate, :burst_rate
 
@@ -147,7 +212,7 @@ module LightrateClient
     # Get current bucket status
     def status
       {
-        available_tokens: @available_tokens,
+        tokens_remaining: @available_tokens,
         max_tokens: @max_tokens
       }
     end

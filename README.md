@@ -33,7 +33,6 @@ require 'lightrate_client'
 
 LightrateClient.configure do |config|
   config.api_key = 'your_api_key'
-  config.base_url = 'https://api.lightrate.lightbournetechnologies.ca' # optional, defaults to production
   config.timeout = 30 # optional, defaults to 30 seconds
   config.retry_attempts = 3 # optional, defaults to 3
   config.logger = Logger.new(STDOUT) # optional, for request logging
