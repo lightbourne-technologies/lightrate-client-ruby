@@ -60,29 +60,29 @@ module LightrateClient
 
   # Response types
   class ConsumeTokensResponse
-    attr_reader :success, :remaining_tokens, :error
+    attr_reader :success, :tokens_remaining, :error
 
-    def initialize(success:, remaining_tokens: nil, error: nil)
+    def initialize(success:, tokens_remaining: nil, error: nil)
       @success = success
-      @remaining_tokens = remaining_tokens
+      @tokens_remaining = tokens_remaining
       @error = error
     end
 
     def self.from_hash(hash)
       new(
         success: hash['success'] || hash[:success],
-        remaining_tokens: hash['remainingTokens'] || hash[:remaining_tokens],
+        tokens_remaining: hash['tokensRemaining'] || hash[:tokens_remaining],
         error: hash['error'] || hash[:error]
       )
     end
   end
 
   class CheckTokensResponse
-    attr_reader :available, :remaining_tokens, :rule
+    attr_reader :available, :tokens_remaining, :rule
 
-    def initialize(available:, remaining_tokens:, rule:)
+    def initialize(available:, tokens_remaining:, rule:)
       @available = available
-      @remaining_tokens = remaining_tokens
+      @tokens_remaining = tokens_remaining
       @rule = rule
     end
 
@@ -92,7 +92,7 @@ module LightrateClient
       
       new(
         available: hash['available'] || hash[:available],
-        remaining_tokens: hash['remainingTokens'] || hash[:remaining_tokens],
+        tokens_remaining: hash['tokensRemaining'] || hash[:tokens_remaining],
         rule: rule
       )
     end
