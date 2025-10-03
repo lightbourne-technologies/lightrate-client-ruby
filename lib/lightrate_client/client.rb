@@ -18,11 +18,14 @@ module LightrateClient
           c.timeout = options[:timeout] || LightrateClient.configuration.timeout
           c.retry_attempts = options[:retry_attempts] || LightrateClient.configuration.retry_attempts
           c.logger = options[:logger] || LightrateClient.configuration.logger
-          c.local_token_bucket_size = options[:local_token_bucket_size] || LightrateClient.configuration.local_token_bucket_size
+          c.default_local_bucket_size = options[:default_local_bucket_size] || LightrateClient.configuration.default_local_bucket_size
         end
       else
         @configuration = options.is_a?(LightrateClient::Configuration) ? options : LightrateClient.configuration
       end
+      
+      # Store per-operation/path bucket size configurations
+      @bucket_size_configs = options[:bucket_size_configs] || {}
       
       validate_configuration!
       setup_connection
@@ -62,8 +65,8 @@ module LightrateClient
       
       # Check if we have enough tokens available locally, if not, get more from API
       unless tokens_available_locally
-        # Use local tokens
-        tokens_to_fetch = @configuration.local_token_bucket_size
+        # Get the appropriate bucket size for this operation/path
+        tokens_to_fetch = get_bucket_size_for_operation(operation, path)
         request = ConsumeTokensRequest.new(
           operation: operation,
           path: path,
@@ -122,8 +125,26 @@ module LightrateClient
       # Create a unique key for this user/operation/path combination
       bucket_key = create_bucket_key(user_identifier, operation, path)
       
-      # Return existing bucket or create a new one
-      @token_buckets[bucket_key] ||= TokenBucket.new(@configuration.local_token_bucket_size)
+      # Return existing bucket or create a new one with appropriate size
+      @token_buckets[bucket_key] ||= begin
+        bucket_size = get_bucket_size_for_operation(operation, path)
+        TokenBucket.new(bucket_size)
+      end
+    end
+
+    def get_bucket_size_for_operation(operation, path)
+      # Check for operation-specific configuration
+      if operation && @bucket_size_configs[:operations] && @bucket_size_configs[:operations][operation]
+        return @bucket_size_configs[:operations][operation]
+      end
+      
+      # Check for path-specific configuration
+      if path && @bucket_size_configs[:paths] && @bucket_size_configs[:paths][path]
+        return @bucket_size_configs[:paths][path]
+      end
+
+      # Fall back to default bucket size
+      @configuration.default_local_bucket_size
     end
 
     def create_bucket_key(user_identifier, operation, path)

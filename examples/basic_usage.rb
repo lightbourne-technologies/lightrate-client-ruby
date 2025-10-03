@@ -3,10 +3,21 @@
 
 require 'lightrate_client'
 
-# Create a client with local token bucket configuration
+# Create a client with per-operation/path bucket size configuration
 client = LightrateClient::Client.new(
   ENV['LIGHTRATE_API_KEY'] || 'your_api_key_here',
-  local_token_bucket_size: 50,  # Store up to 50 tokens locally per bucket
+  default_local_bucket_size: 20,  # Default bucket size
+  bucket_size_configs: {
+    operations: {
+      'send_email' => 100,      # Email operations get larger buckets
+      'send_sms' => 50,         # SMS operations get medium buckets
+      'send_notification' => 10 # Notifications get smaller buckets
+    },
+    paths: {
+      '/api/v1/emails/send' => 75,  # Specific path gets custom size
+      '/api/v1/sms/send' => 25      # Another specific path
+    }  
+  },
   logger: ENV['DEBUG'] ? Logger.new(STDOUT) : nil
 )
 
@@ -14,8 +25,8 @@ puts "=== Lightrate Client with Local Token Buckets ==="
 puts
 
 begin
-  # Example 1: Using consume_local_bucket_token (first call - will fetch from API)
-  puts "1. First call to consume_local_bucket_token (will fetch from API):"
+  # Example 1: Email operation (gets 100 token bucket)
+  puts "1. Email operation (bucket size: 100):"
   result1 = client.consume_local_bucket_token(
     operation: 'send_email',
     user_identifier: 'user123'
@@ -26,10 +37,10 @@ begin
   puts "   Bucket status: #{result1[:bucket_status]}"
   puts
 
-  # Example 2: Using consume_local_bucket_token (second call - will use local bucket)
-  puts "2. Second call to consume_local_bucket_token (will use local bucket):"
+  # Example 2: SMS operation (gets 50 token bucket)
+  puts "2. SMS operation (bucket size: 50):"
   result2 = client.consume_local_bucket_token(
-    operation: 'send_email',
+    operation: 'send_sms',
     user_identifier: 'user123'
   )
 
@@ -38,11 +49,11 @@ begin
   puts "   Bucket status: #{result2[:bucket_status]}"
   puts
 
-  # Example 3: Different user/operation gets separate bucket
-  puts "3. Different user/operation (creates new bucket):"
+  # Example 3: Notification operation (gets 10 token bucket)
+  puts "3. Notification operation (bucket size: 10):"
   result3 = client.consume_local_bucket_token(
-    operation: 'send_sms',
-    user_identifier: 'user456'
+    operation: 'send_notification',
+    user_identifier: 'user123'
   )
 
   puts "   Success: #{result3[:success]}"
@@ -50,8 +61,32 @@ begin
   puts "   Bucket status: #{result3[:bucket_status]}"
   puts
 
-  # Example 4: Direct API call using consume_tokens
-  puts "4. Direct API call using consume_tokens:"
+  # Example 4: Path-based configuration
+  puts "4. Path-based operation (bucket size: 75):"
+  result4 = client.consume_local_bucket_token(
+    path: '/api/v1/emails/send',
+    user_identifier: 'user456'
+  )
+
+  puts "   Success: #{result4[:success]}"
+  puts "   Used local token: #{result4[:used_local_token]}"
+  puts "   Bucket status: #{result4[:bucket_status]}"
+  puts
+
+  # Example 5: Pattern-based path (admin path gets 5 token bucket)
+  puts "5. Admin path operation (bucket size: 5):"
+  result5 = client.consume_local_bucket_token(
+    path: '/api/v1/admin/users/123/notify',
+    user_identifier: 'admin_user'
+  )
+
+  puts "   Success: #{result5[:success]}"
+  puts "   Used local token: #{result5[:used_local_token]}"
+  puts "   Bucket status: #{result5[:bucket_status]}"
+  puts
+
+  # Example 6: Direct API call using consume_tokens
+  puts "6. Direct API call using consume_tokens:"
   api_response = client.consume_tokens(
     operation: 'send_notification',
     user_identifier: 'user789',
@@ -61,6 +96,18 @@ begin
   puts "   Success: #{api_response['success']}"
   puts "   Tokens consumed: #{api_response['tokensConsumed']}"
   puts "   Tokens remaining: #{api_response['tokensRemaining']}"
+  puts
+
+  # Example 7: Show all bucket statuses with their sizes
+  puts "7. All bucket statuses (showing different sizes per operation/path):"
+  all_statuses = client.all_bucket_statuses
+  if all_statuses.any?
+    all_statuses.each do |key, status|
+      puts "   #{key}: #{status[:available_tokens]}/#{status[:max_tokens]} tokens"
+    end
+  else
+    puts "   No local buckets created yet"
+  end
   puts
 
 rescue LightrateClient::UnauthorizedError => e
