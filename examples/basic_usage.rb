@@ -3,82 +3,65 @@
 
 require 'lightrate_client'
 
-# Create a client with just your API key
+# Create a client with local token bucket configuration
 client = LightrateClient::Client.new(
   ENV['LIGHTRATE_API_KEY'] || 'your_api_key_here',
+  local_token_bucket_size: 50,  # Store up to 50 tokens locally per bucket
   logger: ENV['DEBUG'] ? Logger.new(STDOUT) : nil
 )
 
-puts "=== Lightrate Client Example ==="
+puts "=== Lightrate Client with Local Token Buckets ==="
 puts
 
 begin
-  # Example 1: Check tokens by operation
-  puts "1. Checking tokens for 'send_email' operation..."
-  check_response = client.check_tokens(
+  # Example 1: Using consume_local_bucket_token (first call - will fetch from API)
+  puts "1. First call to consume_local_bucket_token (will fetch from API):"
+  result1 = client.consume_local_bucket_token(
     operation: 'send_email',
     user_identifier: 'user123'
   )
 
-  puts "   Available: #{check_response.available}"
-  puts "   Remaining tokens: #{check_response.remaining_tokens}"
-  puts "   Rule: #{check_response.rule.name}"
-  puts "   Refill rate: #{check_response.rule.refill_rate}/min"
-  puts "   Burst rate: #{check_response.rule.burst_rate}"
+  puts "   Success: #{result1[:success]}"
+  puts "   Used local token: #{result1[:used_local_token]}"
+  puts "   Bucket status: #{result1[:bucket_status]}"
   puts
 
-  # Example 2: Consume tokens if available
-  if check_response.available
-    puts "2. Consuming 1 token for 'send_email' operation..."
-    consume_response = client.consume_tokens(
-      operation: 'send_email',
-      user_identifier: 'user123',
-      tokens_requested: 1
-    )
-
-    if consume_response.success
-      puts "   ✓ Successfully consumed token"
-      puts "   Remaining tokens: #{consume_response.remaining_tokens}"
-    else
-      puts "   ✗ Failed to consume token: #{consume_response.error}"
-    end
-  else
-    puts "2. Skipping token consumption - no tokens available"
-  end
-  puts
-
-  # Example 3: Check tokens by path
-  puts "3. Checking tokens for '/api/v1/emails/send' path..."
-  path_check_response = client.check_tokens(
-    path: '/api/v1/emails/send',
+  # Example 2: Using consume_local_bucket_token (second call - will use local bucket)
+  puts "2. Second call to consume_local_bucket_token (will use local bucket):"
+  result2 = client.consume_local_bucket_token(
+    operation: 'send_email',
     user_identifier: 'user123'
   )
 
-  puts "   Available: #{path_check_response.available}"
-  puts "   Remaining tokens: #{path_check_response.remaining_tokens}"
+  puts "   Success: #{result2[:success]}"
+  puts "   Used local token: #{result2[:used_local_token]}"
+  puts "   Bucket status: #{result2[:bucket_status]}"
   puts
 
-  # Example 4: Using request objects
-  puts "4. Using request objects..."
-  request = LightrateClient::ConsumeTokensRequest.new(
+  # Example 3: Different user/operation gets separate bucket
+  puts "3. Different user/operation (creates new bucket):"
+  result3 = client.consume_local_bucket_token(
     operation: 'send_sms',
-    user_identifier: 'user456',
-    tokens_requested: 2
+    user_identifier: 'user456'
   )
 
-  if request.valid?
-    puts "   Request is valid, attempting to consume tokens..."
-    response = client.consume_tokens(request)
-    
-    if response.success
-      puts "   ✓ Successfully consumed #{request.tokens_requested} tokens"
-      puts "   Remaining tokens: #{response.remaining_tokens}"
-    else
-      puts "   ✗ Failed to consume tokens: #{response.error}"
-    end
-  else
-    puts "   ✗ Request is invalid"
-  end
+  puts "   Success: #{result3[:success]}"
+  puts "   Used local token: #{result3[:used_local_token]}"
+  puts "   Bucket status: #{result3[:bucket_status]}"
+  puts
+
+  # Example 4: Direct API call using consume_tokens
+  puts "4. Direct API call using consume_tokens:"
+  api_response = client.consume_tokens(
+    operation: 'send_notification',
+    user_identifier: 'user789',
+    tokens_requested: 3
+  )
+
+  puts "   Success: #{api_response['success']}"
+  puts "   Tokens consumed: #{api_response['tokensConsumed']}"
+  puts "   Tokens remaining: #{api_response['tokensRemaining']}"
+  puts
 
 rescue LightrateClient::UnauthorizedError => e
   puts "❌ Authentication failed: #{e.message}"

@@ -58,43 +58,28 @@ module LightrateClient
     end
   end
 
-  # Response types
-  class ConsumeTokensResponse
-    attr_reader :success, :tokens_remaining, :error
+  class CheckTokensRequest
+    attr_accessor :operation, :path, :user_identifier
 
-    def initialize(success:, tokens_remaining: nil, error: nil)
-      @success = success
-      @tokens_remaining = tokens_remaining
-      @error = error
+    def initialize(operation: nil, path: nil, user_identifier:)
+      @operation = operation
+      @path = path
+      @user_identifier = user_identifier
     end
 
-    def self.from_hash(hash)
-      new(
-        success: hash['success'] || hash[:success],
-        tokens_remaining: hash['tokensRemaining'] || hash[:tokens_remaining],
-        error: hash['error'] || hash[:error]
-      )
-    end
-  end
-
-  class CheckTokensResponse
-    attr_reader :available, :tokens_remaining, :rule
-
-    def initialize(available:, tokens_remaining:, rule:)
-      @available = available
-      @tokens_remaining = tokens_remaining
-      @rule = rule
+    def to_query_params
+      params = { userIdentifier: @user_identifier }
+      params[:operation] = @operation if @operation
+      params[:path] = @path if @path
+      params
     end
 
-    def self.from_hash(hash)
-      rule_data = hash['rule'] || hash[:rule]
-      rule = rule_data ? Rule.from_hash(rule_data) : nil
-      
-      new(
-        available: hash['available'] || hash[:available],
-        tokens_remaining: hash['tokensRemaining'] || hash[:tokens_remaining],
-        rule: rule
-      )
+    def valid?
+      return false if @user_identifier.nil? || @user_identifier.empty?
+      return false if @operation.nil? && @path.nil?
+      return false if @operation && @path
+
+      true
     end
   end
 
@@ -113,6 +98,63 @@ module LightrateClient
         refill_rate: hash['refillRate'] || hash[:refill_rate],
         burst_rate: hash['burstRate'] || hash[:burst_rate]
       )
+    end
+  end
+
+  # Token bucket for local token management
+  class TokenBucket
+    attr_reader :available_tokens, :max_tokens
+
+    def initialize(max_tokens)
+      @max_tokens = max_tokens
+      @available_tokens = 0
+    end
+
+    # Check if tokens are available locally
+    def has_tokens?
+      @available_tokens > 0
+    end
+
+    # Consume one token from the bucket
+    # @return [Boolean] true if token was consumed, false if no tokens available
+    def consume_token
+      return false if @available_tokens <= 0
+      
+      @available_tokens -= 1
+      true
+    end
+
+    # Consume multiple tokens from the bucket
+    # @param count [Integer] Number of tokens to consume
+    # @return [Integer] Number of tokens actually consumed
+    def consume_tokens(count)
+      return 0 if count <= 0 || @available_tokens <= 0
+      
+      tokens_to_consume = [count, @available_tokens].min
+      @available_tokens -= tokens_to_consume
+      tokens_to_consume
+    end
+
+    # Refill the bucket with tokens from the server
+    # @param tokens_to_fetch [Integer] Number of tokens to fetch
+    # @return [Integer] Number of tokens actually added to the bucket
+    def refill(tokens_to_fetch)
+      tokens_to_add = [tokens_to_fetch, @max_tokens - @available_tokens].min
+      @available_tokens += tokens_to_add
+      tokens_to_add
+    end
+
+    # Get current bucket status
+    def status
+      {
+        available_tokens: @available_tokens,
+        max_tokens: @max_tokens
+      }
+    end
+
+    # Reset bucket to empty state
+    def reset
+      @available_tokens = 0
     end
   end
 end

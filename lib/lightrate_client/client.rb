@@ -7,7 +7,7 @@ require "time"
 
 module LightrateClient
   class Client
-    attr_reader :configuration
+    attr_reader :configuration, :token_buckets
 
     def initialize(api_key = nil, options = {})
       if api_key
@@ -18,6 +18,7 @@ module LightrateClient
           c.timeout = options[:timeout] || LightrateClient.configuration.timeout
           c.retry_attempts = options[:retry_attempts] || LightrateClient.configuration.retry_attempts
           c.logger = options[:logger] || LightrateClient.configuration.logger
+          c.local_token_bucket_size = options[:local_token_bucket_size] || LightrateClient.configuration.local_token_bucket_size
         end
       else
         @configuration = options.is_a?(LightrateClient::Configuration) ? options : LightrateClient.configuration
@@ -25,6 +26,7 @@ module LightrateClient
       
       validate_configuration!
       setup_connection
+      setup_token_buckets
     end
 
     # Consume tokens from the token bucket using a request object
@@ -34,8 +36,7 @@ module LightrateClient
       raise ArgumentError, "Invalid request" unless request.is_a?(ConsumeTokensRequest)
       raise ArgumentError, "Request validation failed" unless request.valid?
 
-      response = post("/api/v1/tokens/consume", request.to_h)
-      ConsumeTokensResponse.from_hash(response)
+      post("/api/v1/tokens/consume", request.to_h)
     end
 
     # Check available tokens without consuming them using a request object
@@ -45,15 +46,49 @@ module LightrateClient
       raise ArgumentError, "Invalid request" unless request.is_a?(CheckTokensRequest)
       raise ArgumentError, "Request validation failed" unless request.valid?
 
-      response = get("/api/v1/tokens/check", request.to_query_params)
-      CheckTokensResponse.from_hash(response)
+      get("/api/v1/tokens/check", request.to_query_params)
     end
 
-    # Consume tokens by operation or path
+    # Consume tokens by operation or path using local bucket
     # @param operation [String, nil] The operation name (mutually exclusive with path)
     # @param path [String, nil] The API path (mutually exclusive with operation)
     # @param user_identifier [String] The user identifier
     # @param tokens_requested [Integer] Number of tokens to consume
+    def consume_local_bucket_token(operation: nil, path: nil, user_identifier:)
+      # Get or create bucket for this user/operation/path combination
+      bucket = get_or_create_bucket(user_identifier, operation, path)
+
+      tokens_available_locally = bucket.has_tokens?
+      
+      # Check if we have enough tokens available locally, if not, get more from API
+      unless tokens_available_locally
+        # Use local tokens
+        tokens_to_fetch = @configuration.local_token_bucket_size
+        request = ConsumeTokensRequest.new(
+          operation: operation,
+          path: path,
+          user_identifier: user_identifier,
+          tokens_requested: tokens_to_fetch
+        )
+        # Make the API call
+        response = post("/api/v1/tokens/consume", request.to_h)
+
+        if response['tokensConsumed'] > 0
+          # Refill the bucket with the fetched tokens
+          bucket.refill(response['tokensConsumed'])
+        end
+      end
+
+      # Now try to consume the requested tokens from the bucket
+      consumed_successfully = bucket.consume_token
+
+      {
+        success: consumed_successfully,
+        used_local_token: tokens_available_locally,
+        bucket_status: bucket.status
+      }
+    end
+
     def consume_tokens(operation: nil, path: nil, user_identifier:, tokens_requested:)
       request = ConsumeTokensRequest.new(
         operation: operation,
@@ -78,6 +113,29 @@ module LightrateClient
     end
 
     private
+
+    def setup_token_buckets
+      @token_buckets = {}
+    end
+
+    def get_or_create_bucket(user_identifier, operation, path)
+      # Create a unique key for this user/operation/path combination
+      bucket_key = create_bucket_key(user_identifier, operation, path)
+      
+      # Return existing bucket or create a new one
+      @token_buckets[bucket_key] ||= TokenBucket.new(@configuration.local_token_bucket_size)
+    end
+
+    def create_bucket_key(user_identifier, operation, path)
+      # Create a unique key that combines user, operation, and path
+      if operation
+        "#{user_identifier}:operation:#{operation}"
+      elsif path
+        "#{user_identifier}:path:#{path}"
+      else
+        raise ArgumentError, "Either operation or path must be specified"
+      end
+    end
 
     def validate_configuration!
       raise ConfigurationError, "API key is required" unless configuration.api_key
