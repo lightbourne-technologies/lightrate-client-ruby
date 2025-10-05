@@ -65,6 +65,7 @@ begin
   puts "4. Path-based operation (bucket size: 75):"
   result4 = client.consume_local_bucket_token(
     path: '/api/v1/emails/send',
+    http_method: 'POST',
     user_identifier: 'user456'
   )
 
@@ -77,6 +78,7 @@ begin
   puts "5. Admin path operation (bucket size: 5):"
   result5 = client.consume_local_bucket_token(
     path: '/api/v1/admin/users/123/notify',
+    http_method: 'POST',
     user_identifier: 'admin_user'
   )
 
@@ -85,8 +87,26 @@ begin
   puts "   Bucket status: #{result5[:bucket_status]}"
   puts
 
-  # Example 6: Direct API call using consume_tokens
-  puts "6. Direct API call using consume_tokens:"
+  # Example 6: Different HTTP methods for same path
+  puts "6. Different HTTP methods for same path:"
+  result6a = client.consume_local_bucket_token(
+    path: '/api/v1/users',
+    http_method: 'GET',
+    user_identifier: 'user123'
+  )
+  result6b = client.consume_local_bucket_token(
+    path: '/api/v1/users',
+    http_method: 'POST',
+    user_identifier: 'user123'
+  )
+  
+  puts "   GET /api/v1/users - Success: #{result6a[:success]}"
+  puts "   POST /api/v1/users - Success: #{result6b[:success]}"
+  puts "   (These create separate buckets due to different HTTP methods)"
+  puts
+
+  # Example 7: Direct API call using consume_tokens
+  puts "7. Direct API call using consume_tokens:"
   api_response = client.consume_tokens(
     operation: 'send_notification',
     user_identifier: 'user789',

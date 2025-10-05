@@ -68,6 +68,7 @@ RSpec.describe LightrateClient::Client do
             },
             body: hash_including(
               path: '/api/v1/emails/send',
+              httpMethod: 'POST',
               userIdentifier: 'user123',
               tokensRequested: 1
             )
@@ -80,6 +81,7 @@ RSpec.describe LightrateClient::Client do
 
         response = client.consume_tokens(
           path: '/api/v1/emails/send',
+          http_method: 'POST',
           user_identifier: 'user123',
           tokens_requested: 1
         )
@@ -152,6 +154,7 @@ RSpec.describe LightrateClient::Client do
             },
             query: {
               path: '/api/v1/emails/send',
+              httpMethod: 'POST',
               userIdentifier: 'user123'
             }
           )
@@ -167,6 +170,7 @@ RSpec.describe LightrateClient::Client do
 
         response = client.check_tokens(
           path: '/api/v1/emails/send',
+          http_method: 'POST',
           user_identifier: 'user123'
         )
 
@@ -240,6 +244,7 @@ RSpec.describe LightrateClient::Client do
             .with(
               body: hash_including(
                 path: '/api/v1/emails/send',
+                httpMethod: 'POST',
                 userIdentifier: 'user456',
                 tokensRequested: 30
               )
@@ -256,6 +261,7 @@ RSpec.describe LightrateClient::Client do
 
           result = client_with_buckets.consume_local_bucket_token(
             path: '/api/v1/emails/send',
+            http_method: 'POST',
             user_identifier: 'user456'
           )
 
@@ -484,6 +490,7 @@ RSpec.describe LightrateClient::Client do
           .with(
             body: hash_including(
               path: '/api/v1/emails/send',
+              httpMethod: 'POST',
               userIdentifier: 'user123',
               tokensRequested: 50
             )
@@ -496,6 +503,7 @@ RSpec.describe LightrateClient::Client do
 
         result = client_with_precedence.consume_local_bucket_token(
           path: '/api/v1/emails/send',
+          http_method: 'POST',
           user_identifier: 'user123'
         )
 

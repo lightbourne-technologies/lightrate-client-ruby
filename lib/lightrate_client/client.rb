@@ -34,11 +34,12 @@ module LightrateClient
     # Consume tokens by operation or path using local bucket
     # @param operation [String, nil] The operation name (mutually exclusive with path)
     # @param path [String, nil] The API path (mutually exclusive with operation)
+    # @param http_method [String, nil] The HTTP method (required when path is provided)
     # @param user_identifier [String] The user identifier
     # @param tokens_requested [Integer] Number of tokens to consume
-    def consume_local_bucket_token(operation: nil, path: nil, user_identifier:)
+    def consume_local_bucket_token(operation: nil, path: nil, http_method: nil, user_identifier:)
       # Get or create bucket for this user/operation/path combination
-      bucket = get_or_create_bucket(user_identifier, operation, path)
+      bucket = get_or_create_bucket(user_identifier, operation, path, http_method)
 
       tokens_available_locally = bucket.has_tokens?
       tokens_consumed = 0
@@ -50,6 +51,7 @@ module LightrateClient
         request = LightrateClient::ConsumeTokensRequest.new(
           operation: operation,
           path: path,
+          http_method: http_method,
           user_identifier: user_identifier,
           tokens_requested: tokens_to_fetch
         )
@@ -82,10 +84,11 @@ module LightrateClient
       )
     end
 
-    def consume_tokens(operation: nil, path: nil, user_identifier:, tokens_requested:)
+    def consume_tokens(operation: nil, path: nil, http_method: nil, user_identifier:, tokens_requested:)
       request = LightrateClient::ConsumeTokensRequest.new(
         operation: operation,
         path: path,
+        http_method: http_method,
         user_identifier: user_identifier,
         tokens_requested: tokens_requested
       )
@@ -95,11 +98,13 @@ module LightrateClient
     # Check tokens by operation or path
     # @param operation [String, nil] The operation name (mutually exclusive with path)
     # @param path [String, nil] The API path (mutually exclusive with operation)
+    # @param http_method [String, nil] The HTTP method (required when path is provided)
     # @param user_identifier [String] The user identifier
-    def check_tokens(operation: nil, path: nil, user_identifier:)
+    def check_tokens(operation: nil, path: nil, http_method: nil, user_identifier:)
       request = LightrateClient::CheckTokensRequest.new(
         operation: operation,
         path: path,
+        http_method: http_method,
         user_identifier: user_identifier
       )
       check_tokens_with_request(request)
@@ -133,9 +138,9 @@ module LightrateClient
       @token_buckets = {}
     end
 
-    def get_or_create_bucket(user_identifier, operation, path)
+    def get_or_create_bucket(user_identifier, operation, path, http_method = nil)
       # Create a unique key for this user/operation/path combination
-      bucket_key = create_bucket_key(user_identifier, operation, path)
+      bucket_key = create_bucket_key(user_identifier, operation, path, http_method)
       
       # Return existing bucket or create a new one with appropriate size
       @token_buckets[bucket_key] ||= begin
@@ -159,12 +164,12 @@ module LightrateClient
       @configuration.default_local_bucket_size
     end
 
-    def create_bucket_key(user_identifier, operation, path)
+    def create_bucket_key(user_identifier, operation, path, http_method = nil)
       # Create a unique key that combines user, operation, and path
       if operation
         "#{user_identifier}:operation:#{operation}"
       elsif path
-        "#{user_identifier}:path:#{path}"
+        "#{user_identifier}:path:#{path}:#{http_method}"
       else
         raise ArgumentError, "Either operation or path must be specified"
       end

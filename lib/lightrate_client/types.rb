@@ -3,11 +3,12 @@
 module LightrateClient
   # Request types
   class ConsumeTokensRequest
-    attr_accessor :operation, :path, :user_identifier, :tokens_requested, :timestamp
+    attr_accessor :operation, :path, :http_method, :user_identifier, :tokens_requested, :timestamp
 
-    def initialize(operation: nil, path: nil, user_identifier:, tokens_requested:, timestamp: nil)
+    def initialize(operation: nil, path: nil, http_method: nil, user_identifier:, tokens_requested:, timestamp: nil)
       @operation = operation
       @path = path
+      @http_method = http_method
       @user_identifier = user_identifier
       @tokens_requested = tokens_requested
       @timestamp = timestamp || Time.now
@@ -17,6 +18,7 @@ module LightrateClient
       {
         operation: @operation,
         path: @path,
+        httpMethod: @http_method,
         userIdentifier: @user_identifier,
         tokensRequested: @tokens_requested,
         timestamp: @timestamp
@@ -28,17 +30,19 @@ module LightrateClient
       return false if @tokens_requested.nil? || @tokens_requested <= 0
       return false if @operation.nil? && @path.nil?
       return false if @operation && @path
+      return false if @path && @http_method.nil?
 
       true
     end
   end
 
   class CheckTokensRequest
-    attr_accessor :operation, :path, :user_identifier
+    attr_accessor :operation, :path, :http_method, :user_identifier
 
-    def initialize(operation: nil, path: nil, user_identifier:)
+    def initialize(operation: nil, path: nil, http_method: nil, user_identifier:)
       @operation = operation
       @path = path
+      @http_method = http_method
       @user_identifier = user_identifier
     end
 
@@ -46,6 +50,7 @@ module LightrateClient
       params = { userIdentifier: @user_identifier }
       params[:operation] = @operation if @operation
       params[:path] = @path if @path
+      params[:httpMethod] = @http_method if @http_method
       params
     end
 
@@ -53,31 +58,7 @@ module LightrateClient
       return false if @user_identifier.nil? || @user_identifier.empty?
       return false if @operation.nil? && @path.nil?
       return false if @operation && @path
-
-      true
-    end
-  end
-
-  class CheckTokensRequest
-    attr_accessor :operation, :path, :user_identifier
-
-    def initialize(operation: nil, path: nil, user_identifier:)
-      @operation = operation
-      @path = path
-      @user_identifier = user_identifier
-    end
-
-    def to_query_params
-      params = { userIdentifier: @user_identifier }
-      params[:operation] = @operation if @operation
-      params[:path] = @path if @path
-      params
-    end
-
-    def valid?
-      return false if @user_identifier.nil? || @user_identifier.empty?
-      return false if @operation.nil? && @path.nil?
-      return false if @operation && @path
+      return false if @path && @http_method.nil?
 
       true
     end
