@@ -41,13 +41,25 @@ module LightrateClient
       # Get or create bucket for this user/operation/path combination
       bucket = get_or_create_bucket(user_identifier, operation, path, http_method)
 
-      tokens_available_locally = bucket.has_tokens?
-      tokens_consumed = 0
-      
-      # Check if we have enough tokens available locally, if not, get more from API
-      unless tokens_available_locally
-        # Get the appropriate bucket size for this operation/path
+      # Use the bucket's mutex to synchronize the entire operation
+      # This prevents race conditions between multiple threads trying to consume from the same bucket
+      bucket.synchronize do
+        # Try to consume a token atomically first
+        has_tokens, consumed_successfully = bucket.check_and_consume_token
+        
+        # If we successfully consumed a local token, return success
+        if consumed_successfully
+          return LightrateClient::ConsumeLocalBucketTokenResponse.new(
+            success: true,
+            used_local_token: true,
+            bucket_status: bucket.status
+          )
+        end
+
+        # No local tokens available, need to fetch from API
         tokens_to_fetch = get_bucket_size_for_operation(operation, path)
+        
+        # Make API call
         request = LightrateClient::ConsumeTokensRequest.new(
           operation: operation,
           path: path,
@@ -55,33 +67,32 @@ module LightrateClient
           user_identifier: user_identifier,
           tokens_requested: tokens_to_fetch
         )
+        
         # Make the API call
         response = post("/api/v1/tokens/consume", request.to_h)
-
         tokens_consumed = response['tokensConsumed']&.to_i || 0
+
+        # If we got tokens from API, refill the bucket and try to consume
         if tokens_consumed > 0
-          # Refill the bucket with the fetched tokens
-          bucket.refill(tokens_consumed)
+          tokens_added, has_tokens_after_refill = bucket.refill_and_check(tokens_consumed)
+          
+          # Try to consume a token after refilling
+          _, final_consumed = bucket.check_and_consume_token
+          
+          return LightrateClient::ConsumeLocalBucketTokenResponse.new(
+            success: final_consumed,
+            used_local_token: false,
+            bucket_status: bucket.status
+          )
+        else
+          # No tokens available from API
+          return LightrateClient::ConsumeLocalBucketTokenResponse.new(
+            success: false,
+            used_local_token: false,
+            bucket_status: bucket.status
+          )
         end
       end
-
-      # If we had to fetch from API but got 0 tokens, return failure
-      if !tokens_available_locally && tokens_consumed == 0
-        return LightrateClient::ConsumeLocalBucketTokenResponse.new(
-          success: false,
-          used_local_token: false,
-          bucket_status: bucket.status
-        )
-      end
-
-      # Now try to consume the requested tokens from the bucket
-      consumed_successfully = bucket.consume_token
-
-      LightrateClient::ConsumeLocalBucketTokenResponse.new(
-        success: consumed_successfully,
-        used_local_token: tokens_available_locally,
-        bucket_status: bucket.status
-      )
     end
 
     def consume_tokens(operation: nil, path: nil, http_method: nil, user_identifier:, tokens_requested:)
@@ -136,17 +147,25 @@ module LightrateClient
 
     def setup_token_buckets
       @token_buckets = {}
+      @buckets_mutex = Mutex.new
     end
 
     def get_or_create_bucket(user_identifier, operation, path, http_method = nil)
       # Create a unique key for this user/operation/path combination
       bucket_key = create_bucket_key(user_identifier, operation, path, http_method)
       
-      # Return existing bucket or create a new one with appropriate size
-      @token_buckets[bucket_key] ||= begin
-        bucket_size = get_bucket_size_for_operation(operation, path)
-        TokenBucket.new(bucket_size)
+      # Double-checked locking pattern for thread-safe bucket creation
+      return @token_buckets[bucket_key] if @token_buckets[bucket_key]
+      
+      @buckets_mutex.synchronize do
+        # Check again inside the mutex to prevent duplicate creation
+        @token_buckets[bucket_key] ||= begin
+          bucket_size = get_bucket_size_for_operation(operation, path)
+          TokenBucket.new(bucket_size)
+        end
       end
+      
+      @token_buckets[bucket_key]
     end
 
     def get_bucket_size_for_operation(operation, path)

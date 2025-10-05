@@ -154,14 +154,16 @@ module LightrateClient
     def initialize(max_tokens)
       @max_tokens = max_tokens
       @available_tokens = 0
+      @mutex = Mutex.new
     end
 
-    # Check if tokens are available locally
+    # Check if tokens are available locally (caller must hold lock)
+    # @return [Boolean] true if tokens are available
     def has_tokens?
       @available_tokens > 0
     end
 
-    # Consume one token from the bucket
+    # Consume one token from the bucket (caller must hold lock)
     # @return [Boolean] true if token was consumed, false if no tokens available
     def consume_token
       return false if @available_tokens <= 0
@@ -170,7 +172,7 @@ module LightrateClient
       true
     end
 
-    # Consume multiple tokens from the bucket
+    # Consume multiple tokens from the bucket (caller must hold lock)
     # @param count [Integer] Number of tokens to consume
     # @return [Integer] Number of tokens actually consumed
     def consume_tokens(count)
@@ -181,7 +183,7 @@ module LightrateClient
       tokens_to_consume
     end
 
-    # Refill the bucket with tokens from the server
+    # Refill the bucket with tokens from the server (caller must hold lock)
     # @param tokens_to_fetch [Integer] Number of tokens to fetch
     # @return [Integer] Number of tokens actually added to the bucket
     def refill(tokens_to_fetch)
@@ -190,7 +192,8 @@ module LightrateClient
       tokens_to_add
     end
 
-    # Get current bucket status
+    # Get current bucket status (caller must hold lock)
+    # @return [Hash] Current bucket status with tokens_remaining and max_tokens
     def status
       {
         tokens_remaining: @available_tokens,
@@ -198,9 +201,38 @@ module LightrateClient
       }
     end
 
-    # Reset bucket to empty state
+    # Reset bucket to empty state (caller must hold lock)
     def reset
       @available_tokens = 0
+    end
+
+    # Check tokens and consume atomically (caller must hold lock)
+    # This prevents race conditions between checking and consuming
+    # @return [Array] [has_tokens, consumed_successfully]
+    def check_and_consume_token
+      has_tokens = @available_tokens > 0
+      if has_tokens
+        @available_tokens -= 1
+        [true, true]
+      else
+        [false, false]
+      end
+    end
+
+    # Refill and check tokens atomically (caller must hold lock)
+    # @param tokens_to_fetch [Integer] Number of tokens to fetch
+    # @return [Array] [tokens_added, has_tokens_after_refill]
+    def refill_and_check(tokens_to_fetch)
+      tokens_to_add = [tokens_to_fetch, @max_tokens - @available_tokens].min
+      @available_tokens += tokens_to_add
+      has_tokens_after = @available_tokens > 0
+      [tokens_to_add, has_tokens_after]
+    end
+
+    # Synchronize access to this bucket for thread-safe operations
+    # @yield Block to execute under bucket lock
+    def synchronize(&block)
+      @mutex.synchronize(&block)
     end
   end
 end
