@@ -28,37 +28,37 @@ begin
   # Example 1: Email operation (gets 100 token bucket)
   puts "1. Email operation (bucket size: 100):"
   result1 = client.consume_local_bucket_token(
-    operation: 'send_email',
+    operation: 'operation.one',
     user_identifier: 'user123'
   )
 
-  puts "   Success: #{result1[:success]}"
-  puts "   Used local token: #{result1[:used_local_token]}"
-  puts "   Bucket status: #{result1[:bucket_status]}"
+  puts "   Success: #{result1.success}"
+  puts "   Used local token: #{result1.used_local_token}"
+  puts "   Bucket status: #{result1.bucket_status}"
   puts
 
   # Example 2: SMS operation (gets 50 token bucket)
   puts "2. SMS operation (bucket size: 50):"
   result2 = client.consume_local_bucket_token(
-    operation: 'send_sms',
+    operation: 'operation.two',
     user_identifier: 'user123'
   )
 
-  puts "   Success: #{result2[:success]}"
-  puts "   Used local token: #{result2[:used_local_token]}"
-  puts "   Bucket status: #{result2[:bucket_status]}"
+  puts "   Success: #{result2.success}"
+  puts "   Used local token: #{result2.used_local_token}"
+  puts "   Bucket status: #{result2.bucket_status}"
   puts
 
   # Example 3: Notification operation (gets 10 token bucket)
   puts "3. Notification operation (bucket size: 10):"
   result3 = client.consume_local_bucket_token(
-    operation: 'send_notification',
+    operation: 'operation.one',
     user_identifier: 'user123'
   )
 
-  puts "   Success: #{result3[:success]}"
-  puts "   Used local token: #{result3[:used_local_token]}"
-  puts "   Bucket status: #{result3[:bucket_status]}"
+  puts "   Success: #{result3.success}"
+  puts "   Used local token: #{result3.used_local_token}"
+  puts "   Bucket status: #{result3.bucket_status}"
   puts
 
   # Example 4: Path-based configuration
@@ -69,9 +69,9 @@ begin
     user_identifier: 'user456'
   )
 
-  puts "   Success: #{result4[:success]}"
-  puts "   Used local token: #{result4[:used_local_token]}"
-  puts "   Bucket status: #{result4[:bucket_status]}"
+  puts "   Success: #{result4.success}"
+  puts "   Used local token: #{result4.used_local_token}"
+  puts "   Bucket status: #{result4.bucket_status}"
   puts
 
   # Example 5: Pattern-based path (admin path gets 5 token bucket)
