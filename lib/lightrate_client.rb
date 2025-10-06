@@ -20,9 +20,9 @@ module LightrateClient
       @client ||= Client.new
     end
 
-    # Create a new client with just an API key
-    def new_client(api_key, **options)
-      Client.new(api_key, options)
+    # Create a new client with API key and application ID
+    def new_client(api_key, application_id, **options)
+      Client.new(api_key, application_id, options)
     end
 
     def reset!

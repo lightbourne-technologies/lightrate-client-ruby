@@ -9,11 +9,12 @@ module LightrateClient
   class Client
     attr_reader :configuration, :token_buckets
 
-    def initialize(api_key = nil, options = {})
+    def initialize(api_key = nil, application_id = nil, options = {})
       if api_key
-        # Create a new configuration with the provided API key
+        # Create a new configuration with the provided API key and application ID
         @configuration = LightrateClient::Configuration.new.tap do |c|
           c.api_key = api_key
+          c.application_id = application_id
           c.timeout = options[:timeout] || LightrateClient.configuration.timeout
           c.retry_attempts = options[:retry_attempts] || LightrateClient.configuration.retry_attempts
           c.logger = options[:logger] || LightrateClient.configuration.logger
@@ -61,6 +62,7 @@ module LightrateClient
         
         # Make API call
         request = LightrateClient::ConsumeTokensRequest.new(
+          application_id: @configuration.application_id,
           operation: operation,
           path: path,
           http_method: http_method,
@@ -97,6 +99,7 @@ module LightrateClient
 
     def consume_tokens(operation: nil, path: nil, http_method: nil, user_identifier:, tokens_requested:)
       request = LightrateClient::ConsumeTokensRequest.new(
+        application_id: @configuration.application_id,
         operation: operation,
         path: path,
         http_method: http_method,
@@ -113,6 +116,7 @@ module LightrateClient
     # @param user_identifier [String] The user identifier
     def check_tokens(operation: nil, path: nil, http_method: nil, user_identifier:)
       request = LightrateClient::CheckTokensRequest.new(
+        application_id: @configuration.application_id,
         operation: operation,
         path: path,
         http_method: http_method,
@@ -196,6 +200,7 @@ module LightrateClient
 
     def validate_configuration!
       raise ConfigurationError, "API key is required" unless configuration.api_key
+      raise ConfigurationError, "Application ID is required" unless configuration.application_id
     end
 
     def setup_connection

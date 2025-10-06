@@ -7,6 +7,7 @@ RSpec.describe LightrateClient::Client do
     let(:client) do
       described_class.new(
         'test_key',
+        'test_app',
         default_local_bucket_size: 10,
         logger: nil # Disable logging for cleaner test output
       )
@@ -18,6 +19,7 @@ RSpec.describe LightrateClient::Client do
         stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
           .with(
             body: hash_including(
+              applicationId: 'test_app',
               operation: 'test_operation',
               userIdentifier: 'test_user',
               tokensRequested: 10
@@ -73,7 +75,7 @@ RSpec.describe LightrateClient::Client do
         # Mock API responses for different users
         stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
           .with(
-            body: hash_including(userIdentifier: 'user1')
+            body: hash_including(applicationId: 'test_app', userIdentifier: 'user1')
           )
           .to_return(
             status: 200,
@@ -83,7 +85,7 @@ RSpec.describe LightrateClient::Client do
 
         stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
           .with(
-            body: hash_including(userIdentifier: 'user2')
+            body: hash_including(applicationId: 'test_app', userIdentifier: 'user2')
           )
           .to_return(
             status: 200,

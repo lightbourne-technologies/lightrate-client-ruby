@@ -4,8 +4,10 @@
 require 'lightrate_client'
 
 # Create a client with per-operation/path bucket size configuration
+# Note: Both API key and application ID are required for all requests
 client = LightrateClient::Client.new(
   ENV['LIGHTRATE_API_KEY'] || 'your_api_key_here',
+  ENV['LIGHTRATE_APPLICATION_ID'] || 'your_application_id_here',
   default_local_bucket_size: 20,  # Default bucket size
   bucket_size_configs: {
     operations: {
@@ -82,9 +84,9 @@ begin
     user_identifier: 'admin_user'
   )
 
-  puts "   Success: #{result5[:success]}"
-  puts "   Used local token: #{result5[:used_local_token]}"
-  puts "   Bucket status: #{result5[:bucket_status]}"
+  puts "   Success: #{result5.success}"
+  puts "   Used local token: #{result5.used_local_token}"
+  puts "   Bucket status: #{result5.bucket_status}"
   puts
 
   # Example 6: Different HTTP methods for same path
@@ -100,8 +102,8 @@ begin
     user_identifier: 'user123'
   )
   
-  puts "   GET /api/v1/users - Success: #{result6a[:success]}"
-  puts "   POST /api/v1/users - Success: #{result6b[:success]}"
+  puts "   GET /api/v1/users - Success: #{result6a.success}"
+  puts "   POST /api/v1/users - Success: #{result6b.success}"
   puts "   (These create separate buckets due to different HTTP methods)"
   puts
 
@@ -113,21 +115,9 @@ begin
     tokens_requested: 3
   )
 
-  puts "   Success: #{api_response['success']}"
-  puts "   Tokens consumed: #{api_response['tokensConsumed']}"
-  puts "   Tokens remaining: #{api_response['tokensRemaining']}"
-  puts
-
-  # Example 7: Show all bucket statuses with their sizes
-  puts "7. All bucket statuses (showing different sizes per operation/path):"
-  all_statuses = client.all_bucket_statuses
-  if all_statuses.any?
-    all_statuses.each do |key, status|
-      puts "   #{key}: #{status[:available_tokens]}/#{status[:max_tokens]} tokens"
-    end
-  else
-    puts "   No local buckets created yet"
-  end
+  puts "   Success: #{api_response.success}"
+  puts "   Tokens consumed: #{api_response.tokens_consumed}"
+  puts "   Tokens remaining: #{api_response.tokens_remaining}"
   puts
 
 rescue LightrateClient::UnauthorizedError => e

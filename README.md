@@ -33,6 +33,7 @@ require 'lightrate_client'
 
 LightrateClient.configure do |config|
   config.api_key = 'your_api_key'
+  config.application_id = 'your_application_id' # required
   config.timeout = 30 # optional, defaults to 30 seconds
   config.retry_attempts = 3 # optional, defaults to 3
   config.logger = Logger.new(STDOUT) # optional, for request logging
@@ -42,20 +43,21 @@ end
 ### Basic Usage
 
 ```ruby
-# Simple usage - just pass your API key
-client = LightrateClient::Client.new('your_api_key')
+# Simple usage - pass your API key and application ID
+client = LightrateClient::Client.new('your_api_key', 'your_application_id')
 
 # Or use the convenience method
-client = LightrateClient.new_client('your_api_key')
+client = LightrateClient.new_client('your_api_key', 'your_application_id')
 
 # With additional options
-client = LightrateClient::Client.new('your_api_key', 
+client = LightrateClient::Client.new('your_api_key', 'your_application_id',
   timeout: 60
 )
 
 # Or configure globally and use the default client
 LightrateClient.configure do |config|
   config.api_key = 'your_api_key'
+  config.application_id = 'your_application_id'
 end
 client = LightrateClient.client
 ```

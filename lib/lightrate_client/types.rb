@@ -3,9 +3,10 @@
 module LightrateClient
   # Request types
   class ConsumeTokensRequest
-    attr_accessor :operation, :path, :http_method, :user_identifier, :tokens_requested, :timestamp
+    attr_accessor :application_id, :operation, :path, :http_method, :user_identifier, :tokens_requested, :timestamp
 
-    def initialize(operation: nil, path: nil, http_method: nil, user_identifier:, tokens_requested:, timestamp: nil)
+    def initialize(application_id:, operation: nil, path: nil, http_method: nil, user_identifier:, tokens_requested:, timestamp: nil)
+      @application_id = application_id
       @operation = operation
       @path = path
       @http_method = http_method
@@ -16,6 +17,7 @@ module LightrateClient
 
     def to_h
       {
+        applicationId: @application_id,
         operation: @operation,
         path: @path,
         httpMethod: @http_method,
@@ -26,6 +28,7 @@ module LightrateClient
     end
 
     def valid?
+      return false if @application_id.nil? || @application_id.empty?
       return false if @user_identifier.nil? || @user_identifier.empty?
       return false if @tokens_requested.nil? || @tokens_requested <= 0
       return false if @operation.nil? && @path.nil?
@@ -37,9 +40,10 @@ module LightrateClient
   end
 
   class CheckTokensRequest
-    attr_accessor :operation, :path, :http_method, :user_identifier
+    attr_accessor :application_id, :operation, :path, :http_method, :user_identifier
 
-    def initialize(operation: nil, path: nil, http_method: nil, user_identifier:)
+    def initialize(application_id:, operation: nil, path: nil, http_method: nil, user_identifier:)
+      @application_id = application_id
       @operation = operation
       @path = path
       @http_method = http_method
@@ -47,7 +51,10 @@ module LightrateClient
     end
 
     def to_query_params
-      params = { userIdentifier: @user_identifier }
+      params = { 
+        applicationId: @application_id,
+        userIdentifier: @user_identifier 
+      }
       params[:operation] = @operation if @operation
       params[:path] = @path if @path
       params[:httpMethod] = @http_method if @http_method
@@ -55,6 +62,7 @@ module LightrateClient
     end
 
     def valid?
+      return false if @application_id.nil? || @application_id.empty?
       return false if @user_identifier.nil? || @user_identifier.empty?
       return false if @operation.nil? && @path.nil?
       return false if @operation && @path

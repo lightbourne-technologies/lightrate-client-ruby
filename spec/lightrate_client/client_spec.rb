@@ -3,22 +3,28 @@
 require 'spec_helper'
 
 RSpec.describe LightrateClient::Client do
-  let(:client) { described_class.new('test_key') }
+  let(:client) { described_class.new('test_key', 'test_app') }
 
   describe '#initialize' do
-    it 'creates a client with just an API key' do
-      client = described_class.new('test_key')
+    it 'creates a client with API key and application ID' do
+      client = described_class.new('test_key', 'test_app')
       expect(client.configuration.api_key).to eq('test_key')
+      expect(client.configuration.application_id).to eq('test_app')
     end
 
-    it 'creates a client with API key and options' do
-      client = described_class.new('test_key', timeout: 60)
+    it 'creates a client with API key, application ID and options' do
+      client = described_class.new('test_key', 'test_app', timeout: 60)
       expect(client.configuration.api_key).to eq('test_key')
+      expect(client.configuration.application_id).to eq('test_app')
       expect(client.configuration.timeout).to eq(60)
     end
 
     it 'raises error without API key' do
       expect { described_class.new }.to raise_error(LightrateClient::ConfigurationError, 'API key is required')
+    end
+
+    it 'raises error without application ID' do
+      expect { described_class.new('test_key') }.to raise_error(LightrateClient::ConfigurationError, 'Application ID is required')
     end
   end
 
@@ -34,6 +40,7 @@ RSpec.describe LightrateClient::Client do
               'User-Agent' => 'lightrate-client-ruby/1.0.0'
             },
             body: hash_including(
+              applicationId: 'test_app',
               operation: 'send_email',
               userIdentifier: 'user123',
               tokensRequested: 1
@@ -67,6 +74,7 @@ RSpec.describe LightrateClient::Client do
               'User-Agent' => 'lightrate-client-ruby/1.0.0'
             },
             body: hash_including(
+              applicationId: 'test_app',
               path: '/api/v1/emails/send',
               httpMethod: 'POST',
               userIdentifier: 'user123',
@@ -92,25 +100,6 @@ RSpec.describe LightrateClient::Client do
     end
 
     describe '#check_tokens' do
-      before do
-        stub_request(:get, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/check')
-          .with(
-            headers: {
-              'Authorization' => 'Bearer test_key',
-              'Accept' => 'application/json',
-              'User-Agent' => 'lightrate-client-ruby/1.0.0'
-            }
-          )
-          .to_return(
-            status: 200,
-            body: {
-              available: true,
-              tokensRemaining: 100,
-              rule: { name: 'Test Rule', refillRate: 10, burstRate: 50 }
-            }.to_json,
-            headers: { 'Content-Type' => 'application/json' }
-          )
-      end
 
       it 'checks tokens by operation' do
         stub_request(:get, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/check')
@@ -121,6 +110,7 @@ RSpec.describe LightrateClient::Client do
               'User-Agent' => 'lightrate-client-ruby/1.0.0'
             },
             query: {
+              applicationId: 'test_app',
               operation: 'send_email',
               userIdentifier: 'user123'
             }
@@ -153,6 +143,7 @@ RSpec.describe LightrateClient::Client do
               'User-Agent' => 'lightrate-client-ruby/1.0.0'
             },
             query: {
+              applicationId: 'test_app',
               path: '/api/v1/emails/send',
               httpMethod: 'POST',
               userIdentifier: 'user123'
@@ -184,6 +175,7 @@ RSpec.describe LightrateClient::Client do
     let(:client_with_buckets) do
       described_class.new(
         'test_key',
+        'test_app',
         default_local_bucket_size: 10,
         bucket_size_configs: {
           operations: {
@@ -211,6 +203,7 @@ RSpec.describe LightrateClient::Client do
               'User-Agent' => 'lightrate-client-ruby/1.0.0'
             },
             body: hash_including(
+              applicationId: 'test_app',
               operation: 'send_email',
               userIdentifier: 'user123',
               tokensRequested: 50
@@ -243,6 +236,7 @@ RSpec.describe LightrateClient::Client do
           stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
             .with(
               body: hash_including(
+                applicationId: 'test_app',
                 path: '/api/v1/emails/send',
                 httpMethod: 'POST',
                 userIdentifier: 'user456',
@@ -275,6 +269,7 @@ RSpec.describe LightrateClient::Client do
           stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
             .with(
               body: hash_including(
+                applicationId: 'test_app',
                 operation: 'unknown_operation',
                 userIdentifier: 'user789',
                 tokensRequested: 10
@@ -308,6 +303,7 @@ RSpec.describe LightrateClient::Client do
           stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
             .with(
               body: hash_including(
+                applicationId: 'test_app',
                 operation: 'send_sms',
                 userIdentifier: 'user123',
                 tokensRequested: 25
@@ -375,6 +371,7 @@ RSpec.describe LightrateClient::Client do
           stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
             .with(
               body: hash_including(
+                applicationId: 'test_app',
                 operation: 'send_email',
                 userIdentifier: 'user1',
                 tokensRequested: 50
@@ -389,6 +386,7 @@ RSpec.describe LightrateClient::Client do
           stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
             .with(
               body: hash_including(
+                applicationId: 'test_app',
                 operation: 'send_sms',
                 userIdentifier: 'user1',
                 tokensRequested: 25
@@ -403,6 +401,7 @@ RSpec.describe LightrateClient::Client do
           stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
             .with(
               body: hash_including(
+                applicationId: 'test_app',
                 operation: 'send_email',
                 userIdentifier: 'user2',
                 tokensRequested: 50
@@ -450,6 +449,7 @@ RSpec.describe LightrateClient::Client do
       let(:client_with_precedence) do
         described_class.new(
           'test_key',
+          'test_app',
           default_local_bucket_size: 5,
           bucket_size_configs: {
             operations: {
@@ -466,6 +466,7 @@ RSpec.describe LightrateClient::Client do
         stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
           .with(
             body: hash_including(
+              applicationId: 'test_app',
               operation: 'send_email',
               userIdentifier: 'user123',
               tokensRequested: 100
@@ -489,6 +490,7 @@ RSpec.describe LightrateClient::Client do
         stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
           .with(
             body: hash_including(
+              applicationId: 'test_app',
               path: '/api/v1/emails/send',
               httpMethod: 'POST',
               userIdentifier: 'user123',
@@ -514,6 +516,7 @@ RSpec.describe LightrateClient::Client do
         stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
           .with(
             body: hash_including(
+              applicationId: 'test_app',
               operation: 'unknown_operation',
               userIdentifier: 'user123',
               tokensRequested: 5
