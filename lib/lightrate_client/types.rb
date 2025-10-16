@@ -74,21 +74,27 @@ module LightrateClient
 
   # Response types
   class ConsumeTokensResponse
-    attr_reader :success, :tokens_remaining, :error, :tokens_consumed
+    attr_reader :tokens_remaining, :tokens_consumed, :throttles, :rule
 
-    def initialize(success:, tokens_remaining: nil, error: nil, tokens_consumed: 0)
-      @success = success
+    def initialize(tokens_remaining:, tokens_consumed:, throttles: 0, rule: nil)
       @tokens_remaining = tokens_remaining
-      @error = error
       @tokens_consumed = tokens_consumed
+      @throttles = throttles
+      @rule = rule
     end
 
     def self.from_hash(hash)
+      rule = nil
+      if hash['rule'] || hash[:rule]
+        rule_hash = hash['rule'] || hash[:rule]
+        rule = Rule.from_hash(rule_hash)
+      end
+
       new(
-        success: hash['success'] || hash[:success],
         tokens_remaining: hash['tokensRemaining'] || hash[:tokens_remaining],
-        error: hash['error'] || hash[:error],
-        tokens_consumed: hash['tokensConsumed'] || hash[:tokens_consumed] || 0
+        tokens_consumed: hash['tokensConsumed'] || hash[:tokens_consumed],
+        throttles: hash['throttles'] || hash[:throttles] || 0,
+        rule: rule
       )
     end
   end
@@ -138,19 +144,23 @@ module LightrateClient
   end
 
   class Rule
-    attr_reader :name, :refill_rate, :burst_rate
+    attr_reader :id, :name, :refill_rate, :burst_rate, :is_default
 
-    def initialize(name:, refill_rate:, burst_rate:)
+    def initialize(id:, name:, refill_rate:, burst_rate:, is_default: false)
+      @id = id
       @name = name
       @refill_rate = refill_rate
       @burst_rate = burst_rate
+      @is_default = is_default
     end
 
     def self.from_hash(hash)
       new(
+        id: hash['id'] || hash[:id],
         name: hash['name'] || hash[:name],
         refill_rate: hash['refillRate'] || hash[:refill_rate],
-        burst_rate: hash['burstRate'] || hash[:burst_rate]
+        burst_rate: hash['burstRate'] || hash[:burst_rate],
+        is_default: hash['isDefault'] || hash[:is_default] || false
       )
     end
   end

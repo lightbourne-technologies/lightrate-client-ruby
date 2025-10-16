@@ -60,7 +60,6 @@ RSpec.describe LightrateClient::Client do
           tokens_requested: 1
         )
 
-        expect(response.success).to be true
         expect(response.tokens_remaining).to eq(99)
       end
 
@@ -94,7 +93,6 @@ RSpec.describe LightrateClient::Client do
           tokens_requested: 1
         )
 
-        expect(response.success).to be true
         expect(response.tokens_remaining).to eq(99)
       end
     end
@@ -499,7 +497,18 @@ RSpec.describe LightrateClient::Client do
           )
           .to_return(
             status: 200,
-            body: { success: true, tokensConsumed: 50, tokensRemaining: 950 }.to_json,
+            body: { 
+              tokensConsumed: 50, 
+              tokensRemaining: 950,
+              throttles: 0,
+              rule: {
+                id: "app_1759713446791_t3mgdiu85",
+                name: "Sample Rails App",
+                refillRate: 20,
+                burstRate: 200,
+                isDefault: true
+              }
+            }.to_json,
             headers: { 'Content-Type' => 'application/json' }
           )
 
@@ -524,7 +533,18 @@ RSpec.describe LightrateClient::Client do
           )
           .to_return(
             status: 200,
-            body: { success: true, tokensConsumed: 5, tokensRemaining: 995 }.to_json,
+            body: { 
+              tokensConsumed: 5, 
+              tokensRemaining: 995,
+              throttles: 0,
+              rule: {
+                id: "app_1759713446791_t3mgdiu85",
+                name: "Sample Rails App",
+                refillRate: 20,
+                burstRate: 200,
+                isDefault: true
+              }
+            }.to_json,
             headers: { 'Content-Type' => 'application/json' }
           )
 
