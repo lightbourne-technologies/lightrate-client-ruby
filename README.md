@@ -1,6 +1,6 @@
 # Lightrate Client Ruby
 
-A Ruby gem for interacting with the Lightrate token management API, providing easy-to-use methods for consuming and checking tokens.
+A Ruby gem for interacting with the Lightrate token management API, providing easy-to-use methods for consuming tokens.
 
 ## Installation
 
@@ -72,6 +72,11 @@ response = client.consume_tokens(
   tokens_requested: 1
 )
 
+puts "Tokens consumed: #{response.tokens_consumed}"
+puts "Tokens remaining: #{response.tokens_remaining}"
+puts "Throttles: #{response.throttles}"
+puts "Rule: #{response.rule.name} (ID: #{response.rule.id})"
+
 # Or consume tokens by path
 response = client.consume_tokens(
   path: '/api/v1/emails/send',
@@ -79,11 +84,10 @@ response = client.consume_tokens(
   tokens_requested: 1
 )
 
-if response.success
-  puts "Tokens consumed successfully. Remaining: #{response.remaining_tokens}"
-else
-  puts "Failed to consume tokens: #{response.error}"
-end
+puts "Tokens consumed: #{response.tokens_consumed}"
+puts "Tokens remaining: #{response.tokens_remaining}"
+puts "Throttles: #{response.throttles}"
+puts "Rule: #{response.rule.name} (ID: #{response.rule.id})"
 ```
 
 #### Using Request Objects
@@ -99,49 +103,13 @@ request = LightrateClient::ConsumeTokensRequest.new(
 # Consume tokens
 response = client.consume_tokens_with_request(request)
 
-if response.success
-  puts "Tokens consumed successfully. Remaining: #{response.remaining_tokens}"
-else
-  puts "Failed to consume tokens: #{response.error}"
-end
+puts "Tokens consumed: #{response.tokens_consumed}"
+puts "Tokens remaining: #{response.tokens_remaining}"
+puts "Throttles: #{response.throttles}"
+puts "Rule: #{response.rule.name} (ID: #{response.rule.id})"
 ```
 
-### Checking Tokens
 
-```ruby
-# Check tokens by operation
-response = client.check_tokens(
-  operation: 'send_email',
-  user_identifier: 'user123'
-)
-
-# Or check tokens by path
-response = client.check_tokens(
-  path: '/api/v1/emails/send',
-  user_identifier: 'user123'
-)
-
-puts "Available: #{response.available}"
-puts "Remaining tokens: #{response.remaining_tokens}"
-puts "Rule: #{response.rule.name} (refill: #{response.rule.refill_rate}, burst: #{response.rule.burst_rate})"
-```
-
-#### Using Request Objects
-
-```ruby
-# Create a check tokens request
-request = LightrateClient::CheckTokensRequest.new(
-  operation: 'send_email',
-  user_identifier: 'user123'
-)
-
-# Check tokens
-response = client.check_tokens_with_request(request)
-
-puts "Available: #{response.available}"
-puts "Remaining tokens: #{response.remaining_tokens}"
-puts "Rule: #{response.rule.name} (refill: #{response.rule.refill_rate}, burst: #{response.rule.burst_rate})"
-```
 
 ### Complete Example
 
@@ -152,32 +120,18 @@ require 'lightrate_client'
 client = LightrateClient::Client.new('your_api_key')
 
 begin
-  # Check if tokens are available before attempting to consume
-  check_response = client.check_tokens(
+  # Consume tokens directly
+  consume_response = client.consume_tokens(
     operation: 'send_email',
-    user_identifier: 'user123'
+    user_identifier: 'user123',
+    tokens_requested: 1
   )
 
-  if check_response.available
-    puts "Tokens available: #{check_response.remaining_tokens}"
-    
-    # Consume tokens
-    consume_response = client.consume_tokens(
-      operation: 'send_email',
-      user_identifier: 'user123',
-      tokens_requested: 1
-    )
-
-    if consume_response.success
-      puts "Successfully consumed tokens. Remaining: #{consume_response.remaining_tokens}"
-      # Proceed with your operation
-    else
-      puts "Failed to consume tokens: #{consume_response.error}"
-    end
-  else
-    puts "No tokens available. Remaining: #{check_response.remaining_tokens}"
-    # Handle rate limiting
-  end
+  puts "Tokens consumed: #{consume_response.tokens_consumed}"
+  puts "Tokens remaining: #{consume_response.tokens_remaining}"
+  puts "Throttles: #{consume_response.throttles}"
+  puts "Rule: #{consume_response.rule.name}"
+  # Proceed with your operation
 
 rescue LightrateClient::UnauthorizedError => e
   puts "Authentication failed: #{e.message}"

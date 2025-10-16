@@ -109,22 +109,6 @@ module LightrateClient
       consume_tokens_with_request(request)
     end
 
-    # Check tokens by operation or path
-    # @param operation [String, nil] The operation name (mutually exclusive with path)
-    # @param path [String, nil] The API path (mutually exclusive with operation)
-    # @param http_method [String, nil] The HTTP method (required when path is provided)
-    # @param user_identifier [String] The user identifier
-    def check_tokens(operation: nil, path: nil, http_method: nil, user_identifier:)
-      request = LightrateClient::CheckTokensRequest.new(
-        application_id: @configuration.application_id,
-        operation: operation,
-        path: path,
-        http_method: http_method,
-        user_identifier: user_identifier
-      )
-      check_tokens_with_request(request)
-    end
-
     private
 
     # Consume tokens from the token bucket using a request object
@@ -136,17 +120,6 @@ module LightrateClient
 
       response = post("/api/v1/tokens/consume", request.to_h)
       LightrateClient::ConsumeTokensResponse.from_hash(response)
-    end
-
-    # Check available tokens without consuming them using a request object
-    # @param request [CheckTokensRequest] The token check request
-    # @return [CheckTokensResponse] The response with available tokens and rule info
-    def check_tokens_with_request(request)
-      raise ArgumentError, "Invalid request" unless request.is_a?(LightrateClient::CheckTokensRequest)
-      raise ArgumentError, "Request validation failed" unless request.valid?
-
-      response = get("/api/v1/tokens/check", request.to_query_params)
-      LightrateClient::CheckTokensResponse.from_hash(response)
     end
 
     def setup_token_buckets

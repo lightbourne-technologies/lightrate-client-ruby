@@ -39,39 +39,6 @@ module LightrateClient
     end
   end
 
-  class CheckTokensRequest
-    attr_accessor :application_id, :operation, :path, :http_method, :user_identifier
-
-    def initialize(application_id:, operation: nil, path: nil, http_method: nil, user_identifier:)
-      @application_id = application_id
-      @operation = operation
-      @path = path
-      @http_method = http_method
-      @user_identifier = user_identifier
-    end
-
-    def to_query_params
-      params = { 
-        applicationId: @application_id,
-        userIdentifier: @user_identifier 
-      }
-      params[:operation] = @operation if @operation
-      params[:path] = @path if @path
-      params[:httpMethod] = @http_method if @http_method
-      params
-    end
-
-    def valid?
-      return false if @application_id.nil? || @application_id.empty?
-      return false if @user_identifier.nil? || @user_identifier.empty?
-      return false if @operation.nil? && @path.nil?
-      return false if @operation && @path
-      return false if @path && @http_method.nil?
-
-      true
-    end
-  end
-
   # Response types
   class ConsumeTokensResponse
     attr_reader :tokens_remaining, :tokens_consumed, :throttles, :rule
@@ -116,30 +83,6 @@ module LightrateClient
     # Indicates if there were no more tokens available locally before this request
     def was_bucket_empty?
       !@used_local_token
-    end
-  end
-
-  class CheckTokensResponse
-    attr_reader :available, :tokens_remaining, :rule
-
-    def initialize(available:, tokens_remaining: nil, rule: nil)
-      @available = available
-      @tokens_remaining = tokens_remaining
-      @rule = rule
-    end
-
-    def self.from_hash(hash)
-      rule = nil
-      if hash['rule'] || hash[:rule]
-        rule_hash = hash['rule'] || hash[:rule]
-        rule = Rule.from_hash(rule_hash)
-      end
-
-      new(
-        available: hash['available'] || hash[:available],
-        tokens_remaining: hash['tokensRemaining'] || hash[:tokens_remaining],
-        rule: rule
-      )
     end
   end
 

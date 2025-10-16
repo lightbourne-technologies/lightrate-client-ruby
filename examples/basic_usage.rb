@@ -3,6 +3,13 @@
 
 require 'lightrate_client'
 
+# This example demonstrates the Lightrate Client with the new API response structure.
+# The consume_tokens API now returns:
+# - tokensRemaining: Number of tokens left in the bucket
+# - tokensConsumed: Number of tokens consumed in this request
+# - throttles: Number of throttles applied (usually 0)
+# - rule: Object containing rule information (id, name, refillRate, burstRate, isDefault)
+
 # Create a client with per-operation/path bucket size configuration
 # Note: Both API key and application ID are required for all requests
 client = LightrateClient::Client.new(
@@ -115,9 +122,11 @@ begin
     tokens_requested: 3
   )
 
-  puts "   Success: #{api_response.success}"
   puts "   Tokens consumed: #{api_response.tokens_consumed}"
   puts "   Tokens remaining: #{api_response.tokens_remaining}"
+  puts "   Throttles: #{api_response.throttles}"
+  puts "   Rule: #{api_response.rule.name} (ID: #{api_response.rule.id})"
+  puts "   Is default rule: #{api_response.rule.is_default}"
   puts
 
 rescue LightrateClient::UnauthorizedError => e
