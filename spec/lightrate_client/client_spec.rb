@@ -104,18 +104,7 @@ RSpec.describe LightrateClient::Client do
       described_class.new(
         'test_key',
         'test_app',
-        default_local_bucket_size: 10,
-        bucket_size_configs: {
-          operations: {
-            'send_email' => 50,
-            'send_sms' => 25,
-            'send_notification' => 5
-          },
-          paths: {
-            '/api/v1/emails/send' => 30,
-            '/api/v1/sms/send' => 15
-          }
-        }
+        default_local_bucket_size: 50
       )
     end
 
@@ -168,14 +157,14 @@ RSpec.describe LightrateClient::Client do
                 path: '/api/v1/emails/send',
                 httpMethod: 'POST',
                 userIdentifier: 'user456',
-                tokensRequested: 30
+                tokensRequested: 50
               )
             )
             .to_return(
               status: 200,
               body: {
                 success: true,
-                tokensConsumed: 30,
+                tokensConsumed: 50,
                 tokensRemaining: 970
               }.to_json,
               headers: { 'Content-Type' => 'application/json' }
@@ -189,8 +178,8 @@ RSpec.describe LightrateClient::Client do
 
           expect(result.success).to be true
           expect(result.used_local_token).to be false
-          expect(result.bucket_status[:tokens_remaining]).to eq(29) # 30 fetched, 1 consumed
-          expect(result.bucket_status[:max_tokens]).to eq(30)
+          expect(result.bucket_status[:tokens_remaining]).to eq(49) # 50 fetched, 1 consumed
+          expect(result.bucket_status[:max_tokens]).to eq(50)
         end
 
         it 'uses default bucket size for unknown operation' do
@@ -200,14 +189,14 @@ RSpec.describe LightrateClient::Client do
                 applicationId: 'test_app',
                 operation: 'unknown_operation',
                 userIdentifier: 'user789',
-                tokensRequested: 10
+                tokensRequested: 50
               )
             )
             .to_return(
               status: 200,
               body: {
                 success: true,
-                tokensConsumed: 10,
+                tokensConsumed: 50,
                 tokensRemaining: 990
               }.to_json,
               headers: { 'Content-Type' => 'application/json' }
@@ -220,8 +209,8 @@ RSpec.describe LightrateClient::Client do
 
           expect(result.success).to be true
           expect(result.used_local_token).to be false
-          expect(result.bucket_status[:tokens_remaining]).to eq(9) # 10 fetched, 1 consumed
-          expect(result.bucket_status[:max_tokens]).to eq(10)
+          expect(result.bucket_status[:tokens_remaining]).to eq(49) # 50 fetched, 1 consumed
+          expect(result.bucket_status[:max_tokens]).to eq(50)
         end
       end
 
@@ -234,14 +223,14 @@ RSpec.describe LightrateClient::Client do
                 applicationId: 'test_app',
                 operation: 'send_sms',
                 userIdentifier: 'user123',
-                tokensRequested: 25
+                tokensRequested: 50
               )
             )
             .to_return(
               status: 200,
               body: {
                 success: true,
-                tokensConsumed: 25,
+                tokensConsumed: 50,
                 tokensRemaining: 975
               }.to_json,
               headers: { 'Content-Type' => 'application/json' }
@@ -263,8 +252,8 @@ RSpec.describe LightrateClient::Client do
 
           expect(result.success).to be true
           expect(result.used_local_token).to be true
-          expect(result.bucket_status[:tokens_remaining]).to eq(23) # 25 - 1 (first call) - 1 (second call)
-          expect(result.bucket_status[:max_tokens]).to eq(25)
+          expect(result.bucket_status[:tokens_remaining]).to eq(48) # 50 - 1 (first call) - 1 (second call)
+          expect(result.bucket_status[:max_tokens]).to eq(50)
         end
       end
 
@@ -317,12 +306,12 @@ RSpec.describe LightrateClient::Client do
                 applicationId: 'test_app',
                 operation: 'send_sms',
                 userIdentifier: 'user1',
-                tokensRequested: 25
+                tokensRequested: 50
               )
             )
             .to_return(
               status: 200,
-              body: { success: true, tokensConsumed: 25, tokensRemaining: 975 }.to_json,
+              body: { success: true, tokensConsumed: 50, tokensRemaining: 950 }.to_json,
               headers: { 'Content-Type' => 'application/json' }
             )
 
@@ -364,8 +353,8 @@ RSpec.describe LightrateClient::Client do
           expect(result1.bucket_status[:tokens_remaining]).to eq(49)
           expect(result1.bucket_status[:max_tokens]).to eq(50)
 
-          expect(result2.bucket_status[:tokens_remaining]).to eq(24)
-          expect(result2.bucket_status[:max_tokens]).to eq(25)
+          expect(result2.bucket_status[:tokens_remaining]).to eq(49)
+          expect(result2.bucket_status[:max_tokens]).to eq(50)
 
           expect(result3.bucket_status[:tokens_remaining]).to eq(49)
           expect(result3.bucket_status[:max_tokens]).to eq(50)
@@ -373,118 +362,5 @@ RSpec.describe LightrateClient::Client do
       end
     end
 
-    describe 'bucket size configuration precedence' do
-      let(:client_with_precedence) do
-        described_class.new(
-          'test_key',
-          'test_app',
-          default_local_bucket_size: 5,
-          bucket_size_configs: {
-            operations: {
-              'send_email' => 100
-            },
-            paths: {
-              '/api/v1/emails/send' => 50
-            }
-          }
-        )
-      end
-
-      it 'uses operation-specific size over default' do
-        stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
-          .with(
-            body: hash_including(
-              applicationId: 'test_app',
-              operation: 'send_email',
-              userIdentifier: 'user123',
-              tokensRequested: 100
-            )
-          )
-          .to_return(
-            status: 200,
-            body: { success: true, tokensConsumed: 100, tokensRemaining: 900 }.to_json,
-            headers: { 'Content-Type' => 'application/json' }
-          )
-
-        result = client_with_precedence.consume_local_bucket_token(
-          operation: 'send_email',
-          user_identifier: 'user123'
-        )
-
-        expect(result.bucket_status[:max_tokens]).to eq(100)
-      end
-
-      it 'uses path-specific size over default' do
-        stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
-          .with(
-            body: hash_including(
-              applicationId: 'test_app',
-              path: '/api/v1/emails/send',
-              httpMethod: 'POST',
-              userIdentifier: 'user123',
-              tokensRequested: 50
-            )
-          )
-          .to_return(
-            status: 200,
-            body: { 
-              tokensConsumed: 50, 
-              tokensRemaining: 950,
-              throttles: 0,
-              rule: {
-                id: "app_1759713446791_t3mgdiu85",
-                name: "Sample Rails App",
-                refillRate: 20,
-                burstRate: 200,
-                isDefault: true
-              }
-            }.to_json,
-            headers: { 'Content-Type' => 'application/json' }
-          )
-
-        result = client_with_precedence.consume_local_bucket_token(
-          path: '/api/v1/emails/send',
-          http_method: 'POST',
-          user_identifier: 'user123'
-        )
-
-        expect(result.bucket_status[:max_tokens]).to eq(50)
-      end
-
-      it 'uses default size for unknown operation/path' do
-        stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
-          .with(
-            body: hash_including(
-              applicationId: 'test_app',
-              operation: 'unknown_operation',
-              userIdentifier: 'user123',
-              tokensRequested: 5
-            )
-          )
-          .to_return(
-            status: 200,
-            body: { 
-              tokensConsumed: 5, 
-              tokensRemaining: 995,
-              throttles: 0,
-              rule: {
-                id: "app_1759713446791_t3mgdiu85",
-                name: "Sample Rails App",
-                refillRate: 20,
-                burstRate: 200,
-                isDefault: true
-              }
-            }.to_json,
-            headers: { 'Content-Type' => 'application/json' }
-          )
-
-        result = client_with_precedence.consume_local_bucket_token(
-          operation: 'unknown_operation',
-          user_identifier: 'user123'
-        )
-
-        expect(result.bucket_status[:max_tokens]).to eq(5)
-      end
-    end
   end
 end

@@ -10,23 +10,12 @@ require 'lightrate_client'
 # - throttles: Number of throttles applied (usually 0)
 # - rule: Object containing rule information (id, name, refillRate, burstRate, isDefault)
 
-# Create a client with per-operation/path bucket size configuration
+# Create a client with default bucket size
 # Note: Both API key and application ID are required for all requests
 client = LightrateClient::Client.new(
   ENV['LIGHTRATE_API_KEY'] || 'your_api_key_here',
   ENV['LIGHTRATE_APPLICATION_ID'] || 'your_application_id_here',
-  default_local_bucket_size: 20,  # Default bucket size
-  bucket_size_configs: {
-    operations: {
-      'send_email' => 100,      # Email operations get larger buckets
-      'send_sms' => 50,         # SMS operations get medium buckets
-      'send_notification' => 10 # Notifications get smaller buckets
-    },
-    paths: {
-      '/api/v1/emails/send' => 75,  # Specific path gets custom size
-      '/api/v1/sms/send' => 25      # Another specific path
-    }  
-  },
+  default_local_bucket_size: 20,  # Default bucket size for all operations
   logger: ENV['DEBUG'] ? Logger.new(STDOUT) : nil
 )
 
@@ -34,8 +23,8 @@ puts "=== Lightrate Client with Local Token Buckets ==="
 puts
 
 begin
-  # Example 1: Email operation (gets 100 token bucket)
-  puts "1. Email operation (bucket size: 100):"
+  # Example 1: Email operation (uses default bucket size)
+  puts "1. Email operation (bucket size: 20):"
   result1 = client.consume_local_bucket_token(
     operation: 'operation.one',
     user_identifier: 'user123'
@@ -46,8 +35,8 @@ begin
   puts "   Bucket status: #{result1.bucket_status}"
   puts
 
-  # Example 2: SMS operation (gets 50 token bucket)
-  puts "2. SMS operation (bucket size: 50):"
+  # Example 2: SMS operation (uses default bucket size)
+  puts "2. SMS operation (bucket size: 20):"
   result2 = client.consume_local_bucket_token(
     operation: 'operation.two',
     user_identifier: 'user123'
@@ -58,8 +47,8 @@ begin
   puts "   Bucket status: #{result2.bucket_status}"
   puts
 
-  # Example 3: Notification operation (gets 10 token bucket)
-  puts "3. Notification operation (bucket size: 10):"
+  # Example 3: Notification operation (uses default bucket size)
+  puts "3. Notification operation (bucket size: 20):"
   result3 = client.consume_local_bucket_token(
     operation: 'operation.one',
     user_identifier: 'user123'
@@ -70,8 +59,8 @@ begin
   puts "   Bucket status: #{result3.bucket_status}"
   puts
 
-  # Example 4: Path-based configuration
-  puts "4. Path-based operation (bucket size: 75):"
+  # Example 4: Path-based operation (uses default bucket size)
+  puts "4. Path-based operation (bucket size: 20):"
   result4 = client.consume_local_bucket_token(
     path: '/api/v1/emails/send',
     http_method: 'POST',
@@ -83,8 +72,8 @@ begin
   puts "   Bucket status: #{result4.bucket_status}"
   puts
 
-  # Example 5: Pattern-based path (admin path gets 5 token bucket)
-  puts "5. Admin path operation (bucket size: 5):"
+  # Example 5: Admin path operation (uses default bucket size)
+  puts "5. Admin path operation (bucket size: 20):"
   result5 = client.consume_local_bucket_token(
     path: '/api/v1/admin/users/123/notify',
     http_method: 'POST',

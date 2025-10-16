@@ -24,8 +24,6 @@ module LightrateClient
         @configuration = options.is_a?(LightrateClient::Configuration) ? options : LightrateClient.configuration
       end
       
-      # Store per-operation/path bucket size configurations
-      @bucket_size_configs = options[:bucket_size_configs] || {}
       
       validate_configuration!
       setup_connection
@@ -146,17 +144,7 @@ module LightrateClient
     end
 
     def get_bucket_size_for_operation(operation, path)
-      # Check for operation-specific configuration
-      if operation && @bucket_size_configs[:operations] && @bucket_size_configs[:operations][operation]
-        return @bucket_size_configs[:operations][operation]
-      end
-      
-      # Check for path-specific configuration
-      if path && @bucket_size_configs[:paths] && @bucket_size_configs[:paths][path]
-        return @bucket_size_configs[:paths][path]
-      end
-
-      # Fall back to default bucket size
+      # Always use the default bucket size for all operations and paths
       @configuration.default_local_bucket_size
     end
 

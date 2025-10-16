@@ -62,86 +62,192 @@ end
 client = LightrateClient.client
 ```
 
-### Consuming Tokens
+### Token Consumption Methods
+
+The Lightrate Client provides two methods for consuming tokens, each with different performance characteristics:
+
+#### 🚀 Recommended: Local Token Buckets (`consume_local_bucket_token`)
+
+**Use this method for high-frequency token consumption.** It maintains local token buckets that are refilled in batches from the API, dramatically reducing the number of HTTP requests.
 
 ```ruby
-# Consume tokens by operation
-response = client.consume_tokens(
-  operation: 'send_email',
-  user_identifier: 'user123',
-  tokens_requested: 1
+# Configure client with default bucket size
+client = LightrateClient::Client.new(
+  'your_api_key', 
+  'your_application_id',
+  default_local_bucket_size: 20  # Default bucket size for all operations
 )
 
-puts "Tokens consumed: #{response.tokens_consumed}"
-puts "Tokens remaining: #{response.tokens_remaining}"
-puts "Throttles: #{response.throttles}"
-puts "Rule: #{response.rule.name} (ID: #{response.rule.id})"
+# Consume tokens using local buckets (fast, reduces API calls)
+response = client.consume_local_bucket_token(
+  operation: 'send_email',
+  user_identifier: 'user123'
+)
 
-# Or consume tokens by path
-response = client.consume_tokens(
+puts "Success: #{response.success}"
+puts "Used local token: #{response.used_local_token}"
+puts "Bucket status: #{response.bucket_status}"
+
+# Or consume by path
+response = client.consume_local_bucket_token(
   path: '/api/v1/emails/send',
-  user_identifier: 'user123',
-  tokens_requested: 1
+  http_method: 'POST',
+  user_identifier: 'user123'
 )
-
-puts "Tokens consumed: #{response.tokens_consumed}"
-puts "Tokens remaining: #{response.tokens_remaining}"
-puts "Throttles: #{response.throttles}"
-puts "Rule: #{response.rule.name} (ID: #{response.rule.id})"
 ```
 
-#### Using Request Objects
+**Benefits of Local Buckets:**
+- ⚡ **Fast**: Most token consumption happens locally without HTTP requests
+- 🔄 **Efficient**: Batches token requests to reduce API calls by 95%+
+- 🛡️ **Resilient**: Continues working even with temporary API outages
+- 🎯 **Configurable**: Customizable bucket sizes for your application needs
+
+#### 🌐 Direct API Calls (`consume_tokens`)
+
+**Use this method for occasional token consumption or when you need immediate API feedback.**
 
 ```ruby
-# Create a consume tokens request
-request = LightrateClient::ConsumeTokensRequest.new(
+# Direct API call - makes HTTP request every time
+response = client.consume_tokens(
   operation: 'send_email',
   user_identifier: 'user123',
   tokens_requested: 1
 )
 
-# Consume tokens
-response = client.consume_tokens_with_request(request)
-
 puts "Tokens consumed: #{response.tokens_consumed}"
 puts "Tokens remaining: #{response.tokens_remaining}"
 puts "Throttles: #{response.throttles}"
 puts "Rule: #{response.rule.name} (ID: #{response.rule.id})"
 ```
 
+**When to use Direct API Calls:**
+- 🔍 **Debugging**: When you need immediate API feedback
+- 📊 **Monitoring**: For applications that rarely consume tokens
+- 🎛️ **Control**: When you need precise control over token requests
+- 🔄 **Legacy**: For compatibility with existing code
+
+### Method Comparison
+
+| Feature | Local Buckets | Direct API |
+|---------|---------------|------------|
+| **Speed** | ⚡ Very Fast | 🐌 Network dependent |
+| **API Calls** | 📉 Minimal (95%+ reduction) | 📈 Every request |
+| **Resilience** | 🛡️ High (works offline briefly) | 🔗 Requires network |
+| **Feedback** | 📊 Bucket status only | 📋 Full API response |
+| **Best For** | High-frequency usage | Occasional usage |
+
+### Performance Benefits
+
+**Local Token Buckets dramatically improve performance:**
+
+- **95%+ reduction in API calls** - Instead of making an HTTP request for every token consumption, tokens are fetched in batches
+- **Sub-millisecond response times** - Local token consumption is nearly instant
+- **Better reliability** - Continues working even during brief API outages
+- **Reduced bandwidth costs** - Fewer HTTP requests mean lower network usage
+
+**Example Performance Comparison:**
+```ruby
+# ❌ Slow: Direct API calls
+1000.times do
+  client.consume_tokens(operation: 'send_email', user_identifier: 'user123', tokens_requested: 1)
+  # Each call: ~100-200ms network latency
+end
+# Total: 1000 API calls, ~100-200 seconds
+
+# ✅ Fast: Local buckets
+1000.times do
+  client.consume_local_bucket_token(operation: 'send_email', user_identifier: 'user123')
+  # Each call: ~0.1ms local operation
+end
+# Total: ~1 API call, ~0.1 seconds
+```
+
+### When to Use Each Method
+
+**Use Local Buckets when:**
+- 🚀 Building high-performance applications
+- 📧 Sending bulk emails, SMS, or notifications
+- 🔄 Processing webhooks or background jobs
+- 📊 Handling user-facing requests that need fast response times
+- 🏭 Running production applications with high token usage
+
+**Use Direct API when:**
+- 🔍 Debugging or testing rate limiting
+- 📊 Building monitoring dashboards
+- 🎛️ Need immediate feedback on token consumption
+- 🔄 Migrating from existing implementations
+- 📱 Building low-frequency applications (fewer than 10 requests/minute)
 
 
-### Complete Example
+
+### Complete Example: High-Performance Token Consumption
 
 ```ruby
 require 'lightrate_client'
 
-# Create a client with just your API key
-client = LightrateClient::Client.new('your_api_key')
+# Create a client with default bucket size
+client = LightrateClient::Client.new(
+  ENV['LIGHTRATE_API_KEY'] || 'your_api_key',
+  ENV['LIGHTRATE_APPLICATION_ID'] || 'your_application_id',
+  default_local_bucket_size: 50  # All operations use this bucket size
+)
 
 begin
-  # Consume tokens directly
-  consume_response = client.consume_tokens(
+  # First call: Fetches 50 tokens from API and consumes 1 locally
+  response1 = client.consume_local_bucket_token(
     operation: 'send_email',
-    user_identifier: 'user123',
-    tokens_requested: 1
+    user_identifier: 'user123'
   )
-
-  puts "Tokens consumed: #{consume_response.tokens_consumed}"
-  puts "Tokens remaining: #{consume_response.tokens_remaining}"
-  puts "Throttles: #{consume_response.throttles}"
-  puts "Rule: #{consume_response.rule.name}"
-  # Proceed with your operation
+  
+  puts "First call - Success: #{response1.success}"
+  puts "Used local token: #{response1.used_local_token}"
+  puts "Bucket status: #{response1.bucket_status}"
+  
+  # Second call: Consumes from local bucket (no API call!)
+  response2 = client.consume_local_bucket_token(
+    operation: 'send_email',
+    user_identifier: 'user123'
+  )
+  
+  puts "Second call - Success: #{response2.success}"
+  puts "Used local token: #{response2.used_local_token}"
+  puts "Bucket status: #{response2.bucket_status}"
+  
+  # Example with path-based consumption
+  response3 = client.consume_local_bucket_token(
+    path: '/api/v1/emails/send',
+    http_method: 'POST',
+    user_identifier: 'user123'
+  )
+  
+  puts "Path-based call - Success: #{response3.success}"
+  puts "Bucket status: #{response3.bucket_status}"
+  
+  # Proceed with your operations...
 
 rescue LightrateClient::UnauthorizedError => e
-  puts "Authentication failed: #{e.message}"
+  puts "❌ Authentication failed: #{e.message}"
 rescue LightrateClient::TooManyRequestsError => e
-  puts "Rate limited: #{e.message}"
+  puts "⚠️  Rate limited: #{e.message}"
 rescue LightrateClient::APIError => e
-  puts "API Error (#{e.status_code}): #{e.message}"
+  puts "❌ API Error (#{e.status_code}): #{e.message}"
 rescue LightrateClient::NetworkError => e
-  puts "Network error: #{e.message}"
+  puts "❌ Network error: #{e.message}"
 end
+```
+
+### Advanced Configuration
+
+```ruby
+# For applications with very high token consumption
+client = LightrateClient::Client.new(
+  'your_api_key',
+  'your_application_id',
+  default_local_bucket_size: 500,  # Large default bucket for all operations
+  timeout: 60,                      # Longer timeout for large bucket requests
+  retry_attempts: 5,                # More retries for reliability
+  logger: Logger.new(STDOUT)        # Enable request logging
+)
 ```
 
 ## Error Handling
