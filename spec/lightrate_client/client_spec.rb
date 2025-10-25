@@ -37,7 +37,7 @@ RSpec.describe LightrateClient::Client do
               'Authorization' => 'Bearer test_key',
               'Content-Type' => 'application/json',
               'Accept' => 'application/json',
-              'User-Agent' => 'lightrate-client-ruby/1.0.0'
+              'User-Agent' => 'lightrate-client-ruby/1.0.1'
             },
             body: hash_including(
               applicationId: 'test_app',
@@ -48,7 +48,20 @@ RSpec.describe LightrateClient::Client do
           )
           .to_return(
             status: 200, 
-            body: { success: true, tokensRemaining: 99, tokensConsumed: 1 }.to_json,
+            body: { 
+              tokensRemaining: 99, 
+              tokensConsumed: 1,
+              throttles: 0,
+              rule: {
+                id: "rule_123",
+                name: "Test Rule",
+                refillRate: 10,
+                burstRate: 100,
+                matcher: "send_email",
+                httpMethod: nil,
+                isDefault: false
+              }
+            }.to_json,
             headers: { 'Content-Type' => 'application/json' }
           )
       end
@@ -61,6 +74,11 @@ RSpec.describe LightrateClient::Client do
         )
 
         expect(response.tokens_remaining).to eq(99)
+        expect(response.tokens_consumed).to eq(1)
+        expect(response.throttles).to eq(0)
+        expect(response.rule).not_to be_nil
+        expect(response.rule.id).to eq("rule_123")
+        expect(response.rule.name).to eq("Test Rule")
       end
 
       it 'consumes tokens by path' do
@@ -70,7 +88,7 @@ RSpec.describe LightrateClient::Client do
               'Authorization' => 'Bearer test_key',
               'Content-Type' => 'application/json',
               'Accept' => 'application/json',
-              'User-Agent' => 'lightrate-client-ruby/1.0.0'
+              'User-Agent' => 'lightrate-client-ruby/1.0.1'
             },
             body: hash_including(
               applicationId: 'test_app',
@@ -82,7 +100,20 @@ RSpec.describe LightrateClient::Client do
           )
           .to_return(
             status: 200, 
-            body: { success: true, tokensRemaining: 99, tokensConsumed: 1 }.to_json,
+            body: { 
+              tokensRemaining: 99, 
+              tokensConsumed: 1,
+              throttles: 0,
+              rule: {
+                id: "rule_456",
+                name: "Email Rule",
+                refillRate: 5,
+                burstRate: 50,
+                matcher: "/api/v1/emails/send",
+                httpMethod: "POST",
+                isDefault: false
+              }
+            }.to_json,
             headers: { 'Content-Type' => 'application/json' }
           )
 
@@ -94,6 +125,11 @@ RSpec.describe LightrateClient::Client do
         )
 
         expect(response.tokens_remaining).to eq(99)
+        expect(response.tokens_consumed).to eq(1)
+        expect(response.throttles).to eq(0)
+        expect(response.rule).not_to be_nil
+        expect(response.rule.id).to eq("rule_456")
+        expect(response.rule.name).to eq("Email Rule")
       end
     end
 
@@ -117,7 +153,7 @@ RSpec.describe LightrateClient::Client do
               'Authorization' => 'Bearer test_key',
               'Content-Type' => 'application/json',
               'Accept' => 'application/json',
-              'User-Agent' => 'lightrate-client-ruby/1.0.0'
+              'User-Agent' => 'lightrate-client-ruby/1.0.1'
             },
             body: hash_including(
               applicationId: 'test_app',
@@ -129,9 +165,18 @@ RSpec.describe LightrateClient::Client do
             .to_return(
               status: 200,
               body: {
-                success: true,
                 tokensConsumed: 50,
-                tokensRemaining: 950
+                tokensRemaining: 950,
+                throttles: 0,
+                rule: {
+                  id: "rule_send_email",
+                  name: "Send Email Rule",
+                  refillRate: 20,
+                  burstRate: 200,
+                  matcher: "send_email",
+                  httpMethod: nil,
+                  isDefault: false
+                }
               }.to_json,
               headers: { 'Content-Type' => 'application/json' }
             )
@@ -163,9 +208,18 @@ RSpec.describe LightrateClient::Client do
             .to_return(
               status: 200,
               body: {
-                success: true,
                 tokensConsumed: 50,
-                tokensRemaining: 970
+                tokensRemaining: 970,
+                throttles: 0,
+                rule: {
+                  id: "rule_email_send",
+                  name: "Email Send Rule",
+                  refillRate: 15,
+                  burstRate: 150,
+                  matcher: "/api/v1/emails/send",
+                  httpMethod: "POST",
+                  isDefault: false
+                }
               }.to_json,
               headers: { 'Content-Type' => 'application/json' }
             )
@@ -195,9 +249,18 @@ RSpec.describe LightrateClient::Client do
             .to_return(
               status: 200,
               body: {
-                success: true,
                 tokensConsumed: 50,
-                tokensRemaining: 990
+                tokensRemaining: 990,
+                throttles: 0,
+                rule: {
+                  id: "rule_unknown",
+                  name: "Unknown Operation Rule",
+                  refillRate: 25,
+                  burstRate: 250,
+                  matcher: "unknown_operation",
+                  httpMethod: nil,
+                  isDefault: false
+                }
               }.to_json,
               headers: { 'Content-Type' => 'application/json' }
             )
@@ -229,9 +292,18 @@ RSpec.describe LightrateClient::Client do
             .to_return(
               status: 200,
               body: {
-                success: true,
                 tokensConsumed: 50,
-                tokensRemaining: 975
+                tokensRemaining: 975,
+                throttles: 0,
+                rule: {
+                  id: "rule_send_sms",
+                  name: "Send SMS Rule",
+                  refillRate: 30,
+                  burstRate: 300,
+                  matcher: "send_sms",
+                  httpMethod: nil,
+                  isDefault: false
+                }
               }.to_json,
               headers: { 'Content-Type' => 'application/json' }
             )
@@ -263,9 +335,18 @@ RSpec.describe LightrateClient::Client do
             .to_return(
               status: 200,
               body: {
-                error: 'Insufficient tokens available',
                 tokensRemaining: 0,
-                tokensConsumed: 0
+                tokensConsumed: 0,
+                throttles: 0,
+                rule: {
+                  id: "rule_failed",
+                  name: "Failed Rule",
+                  refillRate: 0,
+                  burstRate: 0,
+                  matcher: "send_email",
+                  httpMethod: nil,
+                  isDefault: false
+                }
               }.to_json
             )
         end
@@ -296,7 +377,20 @@ RSpec.describe LightrateClient::Client do
             )
             .to_return(
               status: 200,
-              body: { success: true, tokensConsumed: 50, tokensRemaining: 950 }.to_json,
+              body: { 
+                tokensConsumed: 50, 
+                tokensRemaining: 950,
+                throttles: 0,
+                rule: {
+                  id: "rule_user1_email",
+                  name: "User1 Email Rule",
+                  refillRate: 20,
+                  burstRate: 200,
+                  matcher: "send_email",
+                  httpMethod: nil,
+                  isDefault: false
+                }
+              }.to_json,
               headers: { 'Content-Type' => 'application/json' }
             )
 
@@ -311,7 +405,20 @@ RSpec.describe LightrateClient::Client do
             )
             .to_return(
               status: 200,
-              body: { success: true, tokensConsumed: 50, tokensRemaining: 950 }.to_json,
+              body: { 
+                tokensConsumed: 50, 
+                tokensRemaining: 950,
+                throttles: 0,
+                rule: {
+                  id: "rule_user1_sms",
+                  name: "User1 SMS Rule",
+                  refillRate: 15,
+                  burstRate: 150,
+                  matcher: "send_sms",
+                  httpMethod: nil,
+                  isDefault: false
+                }
+              }.to_json,
               headers: { 'Content-Type' => 'application/json' }
             )
 
@@ -326,7 +433,20 @@ RSpec.describe LightrateClient::Client do
             )
             .to_return(
               status: 200,
-              body: { success: true, tokensConsumed: 50, tokensRemaining: 950 }.to_json,
+              body: { 
+                tokensConsumed: 50, 
+                tokensRemaining: 950,
+                throttles: 0,
+                rule: {
+                  id: "rule_user2_email",
+                  name: "User2 Email Rule",
+                  refillRate: 20,
+                  burstRate: 200,
+                  matcher: "send_email",
+                  httpMethod: nil,
+                  isDefault: false
+                }
+              }.to_json,
               headers: { 'Content-Type' => 'application/json' }
             )
         end

@@ -37,61 +37,50 @@ module LightrateClient
     # @param user_identifier [String] The user identifier
     # @param tokens_requested [Integer] Number of tokens to consume
     def consume_local_bucket_token(operation: nil, path: nil, http_method: nil, user_identifier:)
-      # Get or create bucket for this user/operation/path combination
-      bucket = get_or_create_bucket(user_identifier, operation, path, http_method)
+      # Synchronize the entire process to prevent race conditions
+      # First, try to find an existing bucket that matches this request
+      bucket = find_bucket_by_matcher(user_identifier, operation, path, http_method)
 
-      # Use the bucket's mutex to synchronize the entire operation
-      # This prevents race conditions between multiple threads trying to consume from the same bucket
-      bucket.synchronize do
-        # Try to consume a token atomically first
-        has_tokens, consumed_successfully = bucket.check_and_consume_token
-        
-        # If we successfully consumed a local token, return success
-        if consumed_successfully
-          return LightrateClient::ConsumeLocalBucketTokenResponse.new(
-            success: true,
-            used_local_token: true,
-            bucket_status: bucket.status
-          )
-        end
-
-        # No local tokens available, need to fetch from API
-        tokens_to_fetch = get_bucket_size_for_operation(operation, path)
-        
-        # Make API call
-        request = LightrateClient::ConsumeTokensRequest.new(
-          application_id: @configuration.application_id,
-          operation: operation,
-          path: path,
-          http_method: http_method,
-          user_identifier: user_identifier,
-          tokens_requested: tokens_to_fetch
+      if bucket && bucket.check_and_consume_token
+        return LightrateClient::ConsumeLocalBucketTokenResponse.new(
+          success: true,
+          used_local_token: true,
+          bucket_status: bucket.status
         )
-        
-        # Make the API call
-        response = post("/api/v1/tokens/consume", request.to_h)
-        tokens_consumed = response['tokensConsumed']&.to_i || 0
+      end
 
-        # If we got tokens from API, refill the bucket and try to consume
-        if tokens_consumed > 0
-          tokens_added, has_tokens_after_refill = bucket.refill_and_check(tokens_consumed)
-          
-          # Try to consume a token after refilling
-          _, final_consumed = bucket.check_and_consume_token
-          
-          return LightrateClient::ConsumeLocalBucketTokenResponse.new(
-            success: final_consumed,
-            used_local_token: false,
-            bucket_status: bucket.status
-          )
-        else
-          # No tokens available from API
-          return LightrateClient::ConsumeLocalBucketTokenResponse.new(
-            success: false,
-            used_local_token: false,
-            bucket_status: bucket.status
-          )
-        end
+      # No matching bucket or bucket is empty - make API call to get tokens and rule info
+      tokens_to_fetch = @configuration.default_local_bucket_size
+      
+      # Make the API call
+      response = consume_tokens(operation: operation, path: path, http_method: http_method, user_identifier: user_identifier, tokens_requested: tokens_to_fetch)
+
+      if response.rule.is_default
+        return LightrateClient::ConsumeLocalBucketTokenResponse.new(
+          success: response.tokens_consumed > 0,
+          used_local_token: false,
+          bucket_status: nil
+        )
+      end
+
+      bucket = check_and_create_bucket(user_identifier, response.rule, response.tokens_consumed)
+
+      tokens_available = bucket.check_and_consume_token
+
+      return LightrateClient::ConsumeLocalBucketTokenResponse.new(
+        success: tokens_available,
+        used_local_token: false,
+        bucket_status: bucket.status
+      )
+    end
+
+    def consume_token_from_bucket(bucket, provided_tokens = 0)
+      bucket.synchronize do
+        fetch_required = !bucket.has_tokens? || bucket.expired?
+
+        token_available = bucket.check_and_consume_token
+
+        [token_available, fetch_required]
       end
     end
 
@@ -117,6 +106,8 @@ module LightrateClient
       raise ArgumentError, "Request validation failed" unless request.valid?
 
       response = post("/api/v1/tokens/consume", request.to_h)
+      # Parse JSON response if it's a string
+      response = JSON.parse(response) if response.is_a?(String)
       LightrateClient::ConsumeTokensResponse.from_hash(response)
     end
 
@@ -125,38 +116,32 @@ module LightrateClient
       @buckets_mutex = Mutex.new
     end
 
-    def get_or_create_bucket(user_identifier, operation, path, http_method = nil)
-      # Create a unique key for this user/operation/path combination
-      bucket_key = create_bucket_key(user_identifier, operation, path, http_method)
-      
-      # Double-checked locking pattern for thread-safe bucket creation
-      return @token_buckets[bucket_key] if @token_buckets[bucket_key]
+    def check_and_create_bucket(user_identifier, rule, initial_tokens)
+      bucket_key = "#{user_identifier}:rule:#{rule.id}"
       
       @buckets_mutex.synchronize do
-        # Check again inside the mutex to prevent duplicate creation
+        return @token_buckets[bucket_key] if @token_buckets[bucket_key] && @token_buckets[bucket_key].has_tokens?
+
         @token_buckets[bucket_key] ||= begin
-          bucket_size = get_bucket_size_for_operation(operation, path)
-          TokenBucket.new(bucket_size)
+          bucket_size = @configuration.default_local_bucket_size
+          TokenBucket.new(bucket_size, rule_id: rule.id, matcher: rule.matcher, http_method: rule.http_method)
         end
       end
-      
+
+      @token_buckets[bucket_key].refill(initial_tokens)
+
       @token_buckets[bucket_key]
     end
 
-    def get_bucket_size_for_operation(operation, path)
-      # Always use the default bucket size for all operations and paths
-      @configuration.default_local_bucket_size
-    end
-
-    def create_bucket_key(user_identifier, operation, path, http_method = nil)
-      # Create a unique key that combines user, operation, and path
-      if operation
-        "#{user_identifier}:operation:#{operation}"
-      elsif path
-        "#{user_identifier}:path:#{path}:#{http_method}"
-      else
-        raise ArgumentError, "Either operation or path must be specified"
+    def find_bucket_by_matcher(user_identifier, operation, path, http_method)
+      # Iterate through buckets to find one that matches this user and request
+      @token_buckets.each do |key, bucket|
+        if key.start_with?("#{user_identifier}:") && bucket.matches?(operation, path, http_method)
+          return bucket
+        end
       end
+      
+      nil
     end
 
     def validate_configuration!

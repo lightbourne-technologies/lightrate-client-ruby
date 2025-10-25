@@ -15,7 +15,7 @@ RSpec.describe LightrateClient::Client do
 
     describe 'concurrent consume_local_bucket_token calls' do
       it 'prevents race conditions when multiple threads consume from empty bucket' do
-        # Mock the API response
+        # Mock the initial API response to create the bucket
         stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
           .with(
             body: hash_including(
@@ -27,20 +27,62 @@ RSpec.describe LightrateClient::Client do
           )
           .to_return(
             status: 200,
-            body: { success: true, tokensConsumed: 10, tokensRemaining: 990 }.to_json,
+            body: { 
+              tokensConsumed: 10, 
+              tokensRemaining: 990,
+              throttles: 0,
+              rule: {
+                id: "rule_test",
+                name: "Test Rule",
+                refillRate: 10,
+                burstRate: 100,
+                matcher: "test_operation",
+                httpMethod: nil,
+                isDefault: false
+              }
+            }.to_json,
             headers: { 'Content-Type' => 'application/json' }
           )
-
-        # Track API calls to ensure only one is made
+        
+        # First, create the bucket and empty it
+        initial_result = client.consume_local_bucket_token(
+          operation: 'test_operation',
+          user_identifier: 'test_user'
+        )
+        
+        expect(initial_result.success).to be true
+        
+        # Empty the bucket by consuming all tokens
+        bucket = client.instance_variable_get(:@token_buckets)["test_user:rule:rule_test"]
+        bucket.synchronize do
+          while bucket.available_tokens > 0
+            bucket.consume_token
+          end
+        end
+        
+        # Track API calls for refill
         api_call_count = 0
         allow(client).to receive(:post) do |*args|
           api_call_count += 1
           # Simulate some network delay
           sleep(0.01)
-          { 'tokensConsumed' => 10, 'tokensRemaining' => 990 }
+          {
+            'tokensConsumed' => 10,
+            'tokensRemaining' => 990,
+            'throttles' => 0,
+            'rule' => {
+              'id' => 'rule_test',
+              'name' => 'Test Rule',
+              'refillRate' => 10,
+              'burstRate' => 100,
+              'matcher' => 'test_operation',
+              'httpMethod' => nil,
+              'isDefault' => false
+            }
+          }
         end
 
-        # Create multiple threads that try to consume tokens simultaneously
+        # Create multiple threads that try to consume tokens simultaneously from empty bucket
         threads = []
         results = []
         mutex = Mutex.new
@@ -60,15 +102,15 @@ RSpec.describe LightrateClient::Client do
 
         # Verify results
         expect(results.length).to eq(10)
-        expect(api_call_count).to eq(1), "Expected only 1 API call, but got #{api_call_count}"
+        expect(api_call_count).to eq(10), "Expected 10 API calls, but got #{api_call_count}"
         
         # All calls should succeed
         expect(results.all?(&:success)).to be true
         
-        # Only the first call should have used local token (false), others should have used local tokens (true)
+        # All calls should have fetched from API (false) since bucket was empty
         local_token_usage = results.map(&:used_local_token)
-        expect(local_token_usage.count(false)).to eq(1) # First call fetched from API
-        expect(local_token_usage.count(true)).to eq(9)  # Subsequent calls used local tokens
+        expect(local_token_usage.count(false)).to eq(10) # All calls fetched from API
+        expect(local_token_usage.count(true)).to eq(0)   # No local tokens used
       end
 
       it 'maintains separate buckets for different users concurrently' do
@@ -79,7 +121,20 @@ RSpec.describe LightrateClient::Client do
           )
           .to_return(
             status: 200,
-            body: { success: true, tokensConsumed: 5, tokensRemaining: 995 }.to_json,
+            body: { 
+              tokensConsumed: 5, 
+              tokensRemaining: 995,
+              throttles: 0,
+              rule: {
+                id: "rule_user1",
+                name: "User1 Rule",
+                refillRate: 5,
+                burstRate: 50,
+                matcher: "test_operation",
+                httpMethod: nil,
+                isDefault: false
+              }
+            }.to_json,
             headers: { 'Content-Type' => 'application/json' }
           )
 
@@ -89,7 +144,20 @@ RSpec.describe LightrateClient::Client do
           )
           .to_return(
             status: 200,
-            body: { success: true, tokensConsumed: 3, tokensRemaining: 997 }.to_json,
+            body: { 
+              tokensConsumed: 3, 
+              tokensRemaining: 997,
+              throttles: 0,
+              rule: {
+                id: "rule_user2",
+                name: "User2 Rule",
+                refillRate: 3,
+                burstRate: 30,
+                matcher: "test_operation",
+                httpMethod: nil,
+                isDefault: false
+              }
+            }.to_json,
             headers: { 'Content-Type' => 'application/json' }
           )
 
@@ -144,7 +212,20 @@ RSpec.describe LightrateClient::Client do
         stub_request(:post, 'https://api.lightrate.lightbournetechnologies.ca/api/v1/tokens/consume')
           .to_return(
             status: 200,
-            body: { success: true, tokensConsumed: 1, tokensRemaining: 999 }.to_json,
+            body: { 
+              tokensConsumed: 1, 
+              tokensRemaining: 999,
+              throttles: 0,
+              rule: {
+                id: "rule_bucket_test",
+                name: "Bucket Test Rule",
+                refillRate: 1,
+                burstRate: 10,
+                matcher: "test_operation",
+                httpMethod: nil,
+                isDefault: false
+              }
+            }.to_json,
             headers: { 'Content-Type' => 'application/json' }
           )
 
@@ -176,7 +257,7 @@ RSpec.describe LightrateClient::Client do
     end
 
     describe 'TokenBucket thread safety' do
-      let(:bucket) { LightrateClient::TokenBucket.new(5) }
+      let(:bucket) { LightrateClient::TokenBucket.new(5, rule_id: 'test_rule', matcher: 'test_operation') }
 
       it 'handles concurrent token consumption' do
         # Refill the bucket first

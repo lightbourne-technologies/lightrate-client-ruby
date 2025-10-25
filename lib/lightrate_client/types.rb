@@ -87,14 +87,16 @@ module LightrateClient
   end
 
   class Rule
-    attr_reader :id, :name, :refill_rate, :burst_rate, :is_default
+    attr_reader :id, :name, :refill_rate, :burst_rate, :is_default, :matcher, :http_method
 
-    def initialize(id:, name:, refill_rate:, burst_rate:, is_default: false)
+    def initialize(id:, name:, refill_rate:, burst_rate:, is_default: false, matcher: nil, http_method: nil)
       @id = id
       @name = name
       @refill_rate = refill_rate
       @burst_rate = burst_rate
       @is_default = is_default
+      @matcher = matcher
+      @http_method = http_method
     end
 
     def self.from_hash(hash)
@@ -103,18 +105,24 @@ module LightrateClient
         name: hash['name'] || hash[:name],
         refill_rate: hash['refillRate'] || hash[:refill_rate],
         burst_rate: hash['burstRate'] || hash[:burst_rate],
-        is_default: hash['isDefault'] || hash[:is_default] || false
+        is_default: hash['isDefault'] || hash[:is_default] || false,
+        matcher: hash['matcher'] || hash[:matcher],
+        http_method: hash['httpMethod'] || hash[:http_method]
       )
     end
   end
 
   # Token bucket for local token management
   class TokenBucket
-    attr_reader :available_tokens, :max_tokens
+    attr_reader :available_tokens, :max_tokens, :rule_id, :matcher, :http_method, :last_accessed_at
 
-    def initialize(max_tokens)
+    def initialize(max_tokens, rule_id:, matcher:, http_method: nil)
       @max_tokens = max_tokens
       @available_tokens = 0
+      @rule_id = rule_id
+      @matcher = matcher
+      @http_method = http_method
+      @last_accessed_at = Time.now
       @mutex = Mutex.new
     end
 
@@ -145,10 +153,11 @@ module LightrateClient
     end
 
     # Refill the bucket with tokens from the server (caller must hold lock)
-    # @param tokens_to_fetch [Integer] Number of tokens to fetch
+    # @param tokens_to_add [Integer] Number of tokens to add
     # @return [Integer] Number of tokens actually added to the bucket
-    def refill(tokens_to_fetch)
-      tokens_to_add = [tokens_to_fetch, @max_tokens - @available_tokens].min
+    def refill(tokens_to_add)
+      touch
+      tokens_to_add = [tokens_to_add, @max_tokens - @available_tokens].min
       @available_tokens += tokens_to_add
       tokens_to_add
     end
@@ -167,27 +176,60 @@ module LightrateClient
       @available_tokens = 0
     end
 
+    # Check if this bucket matches the given request
+    def matches?(operation, path, http_method)
+      return false if expired?
+      return false unless @matcher
+      
+      begin
+        matcher_regex = Regexp.new(@matcher)
+        
+        # For operation-based requests, match against operation
+        if operation
+          return matcher_regex.match?(operation) && @http_method.nil?
+        end
+        
+        # For path-based requests, match against path and HTTP method
+        if path
+          return matcher_regex.match?(path) && @http_method == http_method
+        end
+        
+        false
+      rescue RegexpError
+        # If matcher is not a valid regex, fall back to exact match
+        if operation
+          return @matcher == operation && @http_method.nil?
+        elsif path
+          return @matcher == path && @http_method == http_method
+        end
+        false
+      end
+    end
+
+    # Check if bucket has expired (not accessed in 60 seconds)
+    def expired?
+      Time.now - @last_accessed_at > 60
+    end
+
+    # Update last accessed time
+    def touch
+      @last_accessed_at = Time.now
+    end
+
     # Check tokens and consume atomically (caller must hold lock)
     # This prevents race conditions between checking and consuming
     # @return [Array] [has_tokens, consumed_successfully]
     def check_and_consume_token
-      has_tokens = @available_tokens > 0
-      if has_tokens
-        @available_tokens -= 1
-        [true, true]
-      else
-        [false, false]
+      synchronize do
+        touch
+        has_tokens = @available_tokens > 0
+        if has_tokens
+          @available_tokens -= 1
+          true
+        else
+          false
+        end
       end
-    end
-
-    # Refill and check tokens atomically (caller must hold lock)
-    # @param tokens_to_fetch [Integer] Number of tokens to fetch
-    # @return [Array] [tokens_added, has_tokens_after_refill]
-    def refill_and_check(tokens_to_fetch)
-      tokens_to_add = [tokens_to_fetch, @max_tokens - @available_tokens].min
-      @available_tokens += tokens_to_add
-      has_tokens_after = @available_tokens > 0
-      [tokens_to_add, has_tokens_after]
     end
 
     # Synchronize access to this bucket for thread-safe operations
