@@ -37,7 +37,7 @@ RSpec.describe LightrateClient::Client do
               'Authorization' => 'Bearer test_key',
               'Content-Type' => 'application/json',
               'Accept' => 'application/json',
-              'User-Agent' => 'lightrate-client-ruby/1.0.1'
+              'User-Agent' => 'lightrate-client-ruby/1.0.2'
             },
             body: hash_including(
               applicationId: 'test_app',
@@ -88,7 +88,7 @@ RSpec.describe LightrateClient::Client do
               'Authorization' => 'Bearer test_key',
               'Content-Type' => 'application/json',
               'Accept' => 'application/json',
-              'User-Agent' => 'lightrate-client-ruby/1.0.1'
+              'User-Agent' => 'lightrate-client-ruby/1.0.2'
             },
             body: hash_including(
               applicationId: 'test_app',
@@ -153,7 +153,7 @@ RSpec.describe LightrateClient::Client do
               'Authorization' => 'Bearer test_key',
               'Content-Type' => 'application/json',
               'Accept' => 'application/json',
-              'User-Agent' => 'lightrate-client-ruby/1.0.1'
+              'User-Agent' => 'lightrate-client-ruby/1.0.2'
             },
             body: hash_including(
               applicationId: 'test_app',
