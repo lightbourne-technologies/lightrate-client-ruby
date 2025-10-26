@@ -3,15 +3,16 @@
 module LightrateClient
   # Request types
   class ConsumeTokensRequest
-    attr_accessor :application_id, :operation, :path, :http_method, :user_identifier, :tokens_requested, :timestamp
+    attr_accessor :application_id, :operation, :path, :http_method, :user_identifier, :tokens_requested, :tokens_requested_for_default_bucket_match, :timestamp
 
-    def initialize(application_id:, operation: nil, path: nil, http_method: nil, user_identifier:, tokens_requested:, timestamp: nil)
+    def initialize(application_id:, operation: nil, path: nil, http_method: nil, user_identifier:, tokens_requested:, tokens_requested_for_default_bucket_match: nil, timestamp: nil)
       @application_id = application_id
       @operation = operation
       @path = path
       @http_method = http_method
       @user_identifier = user_identifier
       @tokens_requested = tokens_requested
+      @tokens_requested_for_default_bucket_match = tokens_requested_for_default_bucket_match
       @timestamp = timestamp || Time.now
     end
 
@@ -23,6 +24,7 @@ module LightrateClient
         httpMethod: @http_method,
         userIdentifier: @user_identifier,
         tokensRequested: @tokens_requested,
+        tokensRequestedForDefaultBucketMatch: @tokens_requested_for_default_bucket_match,
         timestamp: @timestamp
       }.compact
     end

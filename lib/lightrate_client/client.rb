@@ -91,7 +91,8 @@ module LightrateClient
         path: path,
         http_method: http_method,
         user_identifier: user_identifier,
-        tokens_requested: tokens_requested
+        tokens_requested: tokens_requested,
+        tokens_requested_for_default_bucket_match: 1
       )
       consume_tokens_with_request(request)
     end
