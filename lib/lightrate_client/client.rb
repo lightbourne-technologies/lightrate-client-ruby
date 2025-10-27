@@ -135,14 +135,9 @@ module LightrateClient
     end
 
     def find_bucket_by_matcher(user_identifier, operation, path, http_method)
-      # Iterate through buckets to find one that matches this user and request
-      @token_buckets.each do |key, bucket|
-        if key.start_with?("#{user_identifier}:") && bucket.matches?(operation, path, http_method)
-          return bucket
-        end
+      @token_buckets.values.find do |bucket|
+        bucket.matches?(operation, path, http_method)
       end
-      
-      nil
     end
 
     def validate_configuration!
