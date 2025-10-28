@@ -479,6 +479,81 @@ RSpec.describe LightrateClient::Client do
           expect(result3.bucket_status[:tokens_remaining]).to eq(49)
           expect(result3.bucket_status[:max_tokens]).to eq(50)
         end
+
+        it 'ensures token buckets are distinguishable by user identifier' do
+          # Create buckets for different users with the same operation
+          # Initial population call for user1
+          result1a = client_with_buckets.consume_local_bucket_token(
+            operation: 'send_email',
+            user_identifier: 'user1'
+          )
+
+          # Initial population call for user2
+          result2a = client_with_buckets.consume_local_bucket_token(
+            operation: 'send_email',
+            user_identifier: 'user2'
+          )
+
+          # Verify each user starts with their own bucket
+          expect(result1a.bucket_status[:tokens_remaining]).to eq(49)
+          expect(result2a.bucket_status[:tokens_remaining]).to eq(49)
+
+          # Now consume tokens from user1's bucket multiple times
+          result1b = client_with_buckets.consume_local_bucket_token(
+            operation: 'send_email',
+            user_identifier: 'user1'
+          )
+
+          result1c = client_with_buckets.consume_local_bucket_token(
+            operation: 'send_email',
+            user_identifier: 'user1'
+          )
+
+          # user1's bucket should have decreased
+          expect(result1b.used_local_token).to be true
+          expect(result1b.bucket_status[:tokens_remaining]).to eq(48)
+          expect(result1c.bucket_status[:tokens_remaining]).to eq(47)
+
+          # user2's bucket should still have 49 tokens (unchanged)
+          result2b = client_with_buckets.consume_local_bucket_token(
+            operation: 'send_email',
+            user_identifier: 'user2'
+          )
+
+          expect(result2b.used_local_token).to be true
+          expect(result2b.bucket_status[:tokens_remaining]).to eq(48)
+
+          # This proves that user1 and user2 have separate buckets
+          # user1's bucket: 49 -> 48 -> 47
+          # user2's bucket: 49 -> 48
+          # They should never interfere with each other
+        end
+
+        it 'prevents users from accessing each others token buckets' do
+          # user1 creates a bucket
+          client_with_buckets.consume_local_bucket_token(
+            operation: 'send_email',
+            user_identifier: 'user1'
+          )
+
+          # user2 tries to access the same operation but should get a separate bucket
+          result2 = client_with_buckets.consume_local_bucket_token(
+            operation: 'send_email',
+            user_identifier: 'user2'
+          )
+
+          expect(result2.bucket_status[:tokens_remaining]).to eq(49)
+          
+          # Verify that each user has a distinct bucket
+          # user1 should have tokens available for subsequent calls
+          result1b = client_with_buckets.consume_local_bucket_token(
+            operation: 'send_email',
+            user_identifier: 'user1'
+          )
+
+          expect(result1b.used_local_token).to be true
+          expect(result1b.bucket_status[:tokens_remaining]).to eq(48)
+        end
       end
     end
 

@@ -116,15 +116,16 @@ module LightrateClient
 
   # Token bucket for local token management
   class TokenBucket
-    attr_reader :available_tokens, :max_tokens, :rule_id, :matcher, :http_method, :last_accessed_at
+    attr_reader :available_tokens, :max_tokens, :rule_id, :matcher, :http_method, :last_accessed_at, :user_identifier
 
-    def initialize(max_tokens, rule_id:, matcher:, http_method: nil)
+    def initialize(max_tokens, rule_id:, matcher:, http_method: nil, user_identifier:)
       @max_tokens = max_tokens
       @available_tokens = 0
       @rule_id = rule_id
       @matcher = matcher
       @http_method = http_method
       @last_accessed_at = Time.now
+      @user_identifier = user_identifier
       @mutex = Mutex.new
     end
 

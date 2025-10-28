@@ -125,7 +125,7 @@ module LightrateClient
 
         @token_buckets[bucket_key] ||= begin
           bucket_size = @configuration.default_local_bucket_size
-          TokenBucket.new(bucket_size, rule_id: rule.id, matcher: rule.matcher, http_method: rule.http_method)
+          TokenBucket.new(bucket_size, rule_id: rule.id, matcher: rule.matcher, http_method: rule.http_method, user_identifier: user_identifier)
         end
       end
 
@@ -136,7 +136,7 @@ module LightrateClient
 
     def find_bucket_by_matcher(user_identifier, operation, path, http_method)
       @token_buckets.values.find do |bucket|
-        bucket.matches?(operation, path, http_method)
+        bucket.matches?(operation, path, http_method) && bucket.user_identifier == user_identifier
       end
     end
 

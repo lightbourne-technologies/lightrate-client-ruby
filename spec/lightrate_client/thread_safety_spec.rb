@@ -257,7 +257,7 @@ RSpec.describe LightrateClient::Client do
     end
 
     describe 'TokenBucket thread safety' do
-      let(:bucket) { LightrateClient::TokenBucket.new(5, rule_id: 'test_rule', matcher: 'test_operation') }
+      let(:bucket) { LightrateClient::TokenBucket.new(5, rule_id: 'test_rule', matcher: 'test_operation', user_identifier: 'test_user') }
 
       it 'handles concurrent token consumption' do
         # Refill the bucket first

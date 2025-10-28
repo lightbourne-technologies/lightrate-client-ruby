@@ -103,8 +103,28 @@ begin
   puts "   (These create separate buckets due to different HTTP methods)"
   puts
 
+  puts "7. Different users calling same operation:"
+  result7a = client.consume_local_bucket_token(
+    operation: 'send_notification',
+    user_identifier: 'user123'
+  )
+  result7b = client.consume_local_bucket_token(
+    operation: 'send_notification',
+    user_identifier: 'user456'
+  )
+  result7c = client.consume_local_bucket_token(
+    operation: 'send_notification',
+    user_identifier: 'user789'
+  )
+
+  puts "   User 123 - Success: #{result7a.success} #{result7a.bucket_status}"
+  puts "   User 456 - Success: #{result7b.success} #{result7b.bucket_status}"
+  puts "   User 789 - Success: #{result7c.success} #{result7c.bucket_status}"
+  puts "   (These create separate buckets due to different users)"
+  puts
+
   # Example 7: Direct API call using consume_tokens
-  puts "7. Direct API call using consume_tokens:"
+  puts "8. Direct API call using consume_tokens:"
   api_response = client.consume_tokens(
     operation: 'send_notification',
     user_identifier: 'user789',
